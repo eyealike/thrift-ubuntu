@@ -6,5 +6,7 @@ thrift (0.2.0-0ubuntu1) lucid; urgency=low
   [ Hannes Schmidt ]
   * Ported to lucid, fixed package versioning (don't really know what I
     am doing here)
+  * Fixed some lintian warnings (invalid package description for thrift-
+    compiler, .svn files included in erlang package)
 
- -- Hannes Schmidt <hannes@eyealike.com>  Wed, 30 Jun 2010 16:59:30 -0700
+ -- Hannes Schmidt <hannes@eyealike.com>  Wed, 30 Jun 2010 19:17:59 -0700

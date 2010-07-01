@@ -105,10 +105,8 @@ install-indep:
 
 	# Erlang
 	mkdir -p $(CURDIR)/debian/libthrift-erlang/usr/lib/erlang/lib/thrift/ && \
-	cp -r $(CURDIR)/lib/erl/ebin \
-		$(CURDIR)/lib/erl/include \
-		$(CURDIR)/lib/erl/src \
-		$(CURDIR)/debian/libthrift-erlang/usr/lib/erlang/lib/thrift/
+	tar -cC $(CURDIR)/lib/erl ebin include src --exclude-vcs \
+	| tar -xC $(CURDIR)/debian/libthrift-erlang/usr/lib/erlang/lib/thrift
 
 	# C#
 	mkdir -p $(CURDIR)/debian/libthrift-cil/usr/lib/cli/thrift/ && \

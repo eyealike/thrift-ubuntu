@@ -21,8 +21,8 @@ Description: Compiler for Thrift definition files
  Thrift came out of Facebook and is now an Apache Software Foundation project.
  .
  This package contains the Thrift compiler that is used for translating from
- .thrift files (containing the definitions) to the language binding for the
- supported languages.
+ protocol definitions in .thrift files to the language binding for the supported 
+ languages.
 
 Package: python-thrift
 Architecture: any
