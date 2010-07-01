@@ -1,5 +1,10 @@
-thrift (0.2008.12.30~8.04) hardy; urgency=low
+thrift (0.2.0-0ubuntu1) lucid; urgency=low
 
+  [ Esteve Fernandez ]
   * Initial release.
 
- -- Esteve Fernandez <esteve@fluidinfo.com>  Thu, 15 Jan 2009 11:34:24 +0100
+  [ Hannes ]
+  * Ported to lucid, fixed package versioning (don't really know what I
+    am doing here)
+
+ -- Hannes <hannes@hannes-desktop>  Wed, 30 Jun 2010 16:59:30 -0700
