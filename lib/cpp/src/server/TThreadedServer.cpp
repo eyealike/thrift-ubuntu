@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include "server/TThreadedServer.h"
-#include "transport/TTransportException.h"
-#include "concurrency/PosixThreadFactory.h"
+#include "../server/TThreadedServer.h"
+#include "../transport/TTransportException.h"
+#include "../concurrency/PosixThreadFactory.h"
 
 #include <string>
 #include <iostream>

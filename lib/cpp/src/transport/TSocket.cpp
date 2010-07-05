@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "concurrency/Monitor.h"
+#include "../concurrency/Monitor.h"
 #include "TSocket.h"
 #include "TTransportException.h"
 

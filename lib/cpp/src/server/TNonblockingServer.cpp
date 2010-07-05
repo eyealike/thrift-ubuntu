@@ -18,8 +18,8 @@
  */
 
 #include "TNonblockingServer.h"
-#include "concurrency/Exception.h"
-#include "transport/TSocket.h"
+#include "../concurrency/Exception.h"
+#include "../transport/TSocket.h"
 
 #include <iostream>
 #include <sys/socket.h>

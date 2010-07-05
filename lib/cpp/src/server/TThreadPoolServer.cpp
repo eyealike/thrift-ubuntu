@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include "server/TThreadPoolServer.h"
-#include "transport/TTransportException.h"
-#include "concurrency/Thread.h"
-#include "concurrency/ThreadManager.h"
+#include "../server/TThreadPoolServer.h"
+#include "../transport/TTransportException.h"
+#include "../concurrency/Thread.h"
+#include "../concurrency/ThreadManager.h"
 #include <string>
 #include <iostream>
 
