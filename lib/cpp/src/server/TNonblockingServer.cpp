@@ -18,7 +18,7 @@
  */
 
 #include "TNonblockingServer.h"
-#include "concurrency/Exception.h"
+#include "../concurrency/Exception.h"
 
 #include <iostream>
 #include <sys/socket.h>

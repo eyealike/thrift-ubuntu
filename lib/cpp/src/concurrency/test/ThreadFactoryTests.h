@@ -18,10 +18,10 @@
  */
 
 #include <config.h>
-#include "concurrency/Thread.h"
-#include "concurrency/PosixThreadFactory.h"
-#include "concurrency/Monitor.h"
-#include "concurrency/Util.h"
+#include "../concurrency/Thread.h"
+#include "../concurrency/PosixThreadFactory.h"
+#include "../concurrency/Monitor.h"
+#include "../concurrency/Util.h"
 
 #include <assert.h>
 #include <unistd.h>

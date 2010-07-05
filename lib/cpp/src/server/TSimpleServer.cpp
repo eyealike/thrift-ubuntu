@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include "server/TSimpleServer.h"
-#include "transport/TTransportException.h"
+#include "../server/TSimpleServer.h"
+#include "../transport/TTransportException.h"
 #include <string>
 #include <iostream>
 

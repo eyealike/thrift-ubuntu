@@ -21,9 +21,9 @@
 #define _THRIFT_SERVER_TNONBLOCKINGSERVER_H_ 1
 
 #include <Thrift.h>
-#include "server/TServer.h"
-#include "transport/TBufferTransports.h"
-#include "concurrency/ThreadManager.h"
+#include "../server/TServer.h"
+#include "../transport/TBufferTransports.h"
+#include "../concurrency/ThreadManager.h"
 #include <stack>
 #include <string>
 #include <errno.h>
