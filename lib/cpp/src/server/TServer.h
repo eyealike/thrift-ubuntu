@@ -20,7 +20,7 @@
 #ifndef _THRIFT_SERVER_TSERVER_H_
 #define _THRIFT_SERVER_TSERVER_H_ 1
 
-#include <TProcessor.h>
+#include "../TProcessor.h"
 #include "../transport/TServerTransport.h"
 #include "../protocol/TBinaryProtocol.h"
 #include "../concurrency/Thread.h"

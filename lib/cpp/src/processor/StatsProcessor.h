@@ -23,7 +23,7 @@
 #include <boost/shared_ptr.hpp>
 #include "../transport/TTransport.h"
 #include "../protocol/TProtocol.h"
-#include <TProcessor.h>
+#include "../TProcessor.h"
 
 namespace apache { namespace thrift { namespace processor {
 
