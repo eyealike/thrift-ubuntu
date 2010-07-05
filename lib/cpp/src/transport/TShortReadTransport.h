@@ -22,7 +22,7 @@
 
 #include <cstdlib>
 
-#include <transport/TTransport.h>
+#include "transport/TTransport.h"
 
 namespace apache { namespace thrift { namespace transport { namespace test {
 
