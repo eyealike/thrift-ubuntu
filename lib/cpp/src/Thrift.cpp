@@ -20,7 +20,7 @@
 #include <Thrift.h>
 #include <cstring>
 #include <boost/lexical_cast.hpp>
-#include <protocol/TProtocol.h>
+#include "protocol/TProtocol.h"
 #include <stdarg.h>
 #include <stdio.h>
 
