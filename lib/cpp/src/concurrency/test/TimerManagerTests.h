@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include "../concurrency/TimerManager.h"
-#include "../concurrency/PosixThreadFactory.h"
-#include "../concurrency/Monitor.h"
-#include "../concurrency/Util.h"
+#include "../../concurrency/TimerManager.h"
+#include "../../concurrency/PosixThreadFactory.h"
+#include "../../concurrency/Monitor.h"
+#include "../../concurrency/Util.h"
 
 #include <assert.h>
 #include <iostream>
