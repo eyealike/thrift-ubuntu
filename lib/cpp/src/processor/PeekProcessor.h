@@ -21,7 +21,7 @@
 #define PEEKPROCESSOR_H
 
 #include <string>
-#include <TProcessor.h>
+#include "../TProcessor.h"
 #include "../transport/TTransport.h"
 #include "../transport/TTransportUtils.h"
 #include "../transport/TBufferTransports.h"
