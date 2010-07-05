@@ -23,7 +23,7 @@
 #include <cstring>
 #include "boost/scoped_array.hpp"
 
-#include <transport/TTransport.h>
+#include "transport/TTransport.h"
 
 #ifdef __GNUC__
 #define TDB_LIKELY(val) (__builtin_expect((val), 1))
