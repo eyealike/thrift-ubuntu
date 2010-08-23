@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <config.h>
 #include "../../concurrency/Thread.h"
 #include "../../concurrency/PosixThreadFactory.h"
 #include "../../concurrency/Monitor.h"

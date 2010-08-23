@@ -17,6 +17,10 @@
  * under the License.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "TSimpleFileTransport.h"
 
 #include <sys/types.h>

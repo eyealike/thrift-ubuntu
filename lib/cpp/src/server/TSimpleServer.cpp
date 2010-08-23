@@ -17,6 +17,10 @@
  * under the License.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "../server/TSimpleServer.h"
 #include "../transport/TTransportException.h"
 #include <string>

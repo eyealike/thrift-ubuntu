@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include "Util.h"
-
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
+
+#include "Util.h"
 
 #if defined(HAVE_CLOCK_GETTIME)
 #include <time.h>

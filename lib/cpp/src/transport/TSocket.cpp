@@ -17,7 +17,10 @@
  * under the License.
  */
 
-#include <config.h>
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <cstring>
 #include <sstream>
 #include <sys/socket.h>
