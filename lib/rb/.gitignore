@@ -1,0 +1,5 @@
+/.config
+/InstalledFiles
+/Makefile
+/ext/Makefile
+/ext/thrift_native.so

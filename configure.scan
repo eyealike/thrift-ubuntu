@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.64])
+AC_PREREQ([2.65])
 AC_INIT([FULL-PACKAGE-NAME], [VERSION], [BUG-REPORT-ADDRESS])
 AC_CONFIG_SRCDIR([contrib/thrift_dump.cpp])
 AC_CONFIG_HEADERS([config.h])
@@ -14,8 +14,18 @@ AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
 # Checks for libraries.
+# FIXME: Replace `main' with a function in `-lc':
+AC_CHECK_LIB([c], [main])
+# FIXME: Replace `main' with a function in `-lcrypt':
+AC_CHECK_LIB([crypt], [main])
 # FIXME: Replace `main' with a function in `-ldl':
 AC_CHECK_LIB([dl], [main])
+# FIXME: Replace `main' with a function in `-lm':
+AC_CHECK_LIB([m], [main])
+# FIXME: Replace `main' with a function in `-lpthread':
+AC_CHECK_LIB([pthread], [main])
+# FIXME: Replace `main' with a function in `-lrt':
+AC_CHECK_LIB([rt], [main])
 # FIXME: Replace `main' with a function in `-lthrift':
 AC_CHECK_LIB([thrift], [main])
 
@@ -59,6 +69,7 @@ AC_CONFIG_FILES([Makefile
                  lib/perl/test/Makefile
                  lib/py/Makefile
                  lib/rb/Makefile
+                 lib/rb/ext/Makefile
                  test/Makefile
                  test/cpp/realloc/Makefile
                  test/erl/Makefile

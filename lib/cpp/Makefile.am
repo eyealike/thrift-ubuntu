@@ -81,7 +81,6 @@ libthriftz_la_CPPFLAGS  = $(AM_CPPFLAGS) $(ZLIB_CPPFLAGS)
 
 include_thriftdir = $(includedir)/thrift
 include_thrift_HEADERS = \
-                         $(top_builddir)/config.h \
                          src/Thrift.h \
                          src/TReflectionLocal.h \
                          src/TProcessor.h \

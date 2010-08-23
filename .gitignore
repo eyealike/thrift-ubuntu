@@ -1,0 +1,16 @@
+*.o
+*.lo
+*.la
+*.log
+*.substvars
+.deps
+.libs
+/libtool
+/stamp-h1
+/Makefile
+/Makefile.in
+/*-stamp
+/Makefile
+/Makefile.in
+/config.h
+/config.status

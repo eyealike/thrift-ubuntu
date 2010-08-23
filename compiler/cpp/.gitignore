@@ -1,0 +1,6 @@
+/Makefile
+/thrift
+/thriftl.cc
+/thrifty.cc
+/thrifty.h
+/version.h
