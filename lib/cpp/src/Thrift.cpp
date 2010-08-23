@@ -17,6 +17,10 @@
  * under the License.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "Thrift.h"
 #include <cstring>
 #include <boost/lexical_cast.hpp>
