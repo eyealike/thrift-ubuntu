@@ -15,6 +15,9 @@
 Makefile.in
 /config.h
 /config.status
+/config.guess
+/config.sub
+/ltmain.sh
 /aclocal.m4
 /configure
 /configure.scan
@@ -23,4 +26,7 @@ Makefile.in
 /install-sh
 /missing
 /ylwrap
-
+/.autotools
+/.cproject
+/.project
+/autom4te.cache/
