@@ -73,7 +73,7 @@ build-indep-stamp: configure-stamp
 	$(MAKE) -C $(CURDIR)/lib/csharp
 
 	# Perl
-	$(MAKE) -C $(CURDIR)/lib/perl INSTALLDIRS=vendor
+	$(MAKE) -C $(CURDIR)/lib/perl INSTALLDIRS=vendor PERL_PREFIX=/usr
 
 	touch $@
 
@@ -98,7 +98,7 @@ install-indep:
 	# debian/<package>-doc.
 	#INSTALLDOC#
 
-    # Java
+	# Java
 	mkdir -p $(CURDIR)/debian/libthrift-java/usr/share/java/ && \
 	cp $(CURDIR)/lib/java/libthrift.jar \
 		$(CURDIR)/debian/libthrift-java/usr/share/java/
@@ -114,7 +114,7 @@ install-indep:
 		$(CURDIR)/debian/libthrift-cil/usr/lib/cli/thrift/Thrift.dll
 
 	# Perl
-	$(MAKE) -C $(CURDIR)/lib/perl install PREFIX=$(CURDIR)/debian/libthrift-perl/usr
+	$(MAKE) -C $(CURDIR)/lib/perl install DESTDIR=$(CURDIR)/debian/libthrift-perl
 
 	dh_install -i
 
