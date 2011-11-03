@@ -5,8 +5,6 @@ distribution="lucid"
 upstreamVersion="0.4.0"
 debianVersion="0ubuntu${psPlatformVersion}"
 
-config/autorun.sh
-
 dch \
 	--distribution "${distribution}" \
 	--force-distribution \
