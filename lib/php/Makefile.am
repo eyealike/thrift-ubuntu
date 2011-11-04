@@ -17,20 +17,27 @@
 # under the License.
 #
 
+%.so:
+	cd src/ext/thrift_protocol/ \
+	  && $(MAKE)
+
+if WITH_PHP_EXTENSION
+phpconfdir=$(PHP_CONFIG_PREFIX)
+phpconf_DATA=thrift_protocol.ini
+
+phpmoduledir = `php-config --extension-dir`
+phpmodule_SCRIPTS = src/ext/thrift_protocol/modules/thrift_protocol.so
+endif
+
 phpdir = $(PHP_PREFIX)
 php_DATA =  \
   src/autoload.php \
   src/Thrift.php
 
-phpextdir = $(phpdir)/ext/thrift_protocol
-phpext_DATA = \
-  src/ext/thrift_protocol/config.m4 \
-  src/ext/thrift_protocol/php_thrift_protocol.cpp \
-  src/ext/thrift_protocol/php_thrift_protocol.h
-
 phpprotocoldir = $(phpdir)/protocol
 phpprotocol_DATA = \
   src/protocol/TBinaryProtocol.php \
+  src/protocol/TBinarySerializer.php \
   src/protocol/TProtocol.php
 
 phptransportdir = $(phpdir)/transport
@@ -44,5 +51,7 @@ phptransport_DATA = \
   src/transport/TSocket.php \
   src/transport/TSocketPool.php \
   src/transport/TTransport.php
+
+EXTRA_DIST = src thrift_protocol.ini README.apache
 
 MAINTAINERCLEANFILES = Makefile Makefile.in

@@ -18,6 +18,11 @@
  */
 package org.apache.thrift;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -196,23 +201,28 @@ public class TestStruct extends TestCase {
     Map<CrazyNesting._Fields, FieldMetaData> mdMap = CrazyNesting.metaDataMap;
 
     // Check for struct fields existence
-    assertEquals(3, mdMap.size());
+    assertEquals(4, mdMap.size());
     assertTrue(mdMap.containsKey(CrazyNesting._Fields.SET_FIELD));
     assertTrue(mdMap.containsKey(CrazyNesting._Fields.LIST_FIELD));
     assertTrue(mdMap.containsKey(CrazyNesting._Fields.STRING_FIELD));
+    assertTrue(mdMap.containsKey(CrazyNesting._Fields.BINARY_FIELD));
 
     // Check for struct fields contents
     assertEquals("string_field", mdMap.get(CrazyNesting._Fields.STRING_FIELD).fieldName);
     assertEquals("list_field", mdMap.get(CrazyNesting._Fields.LIST_FIELD).fieldName);
     assertEquals("set_field", mdMap.get(CrazyNesting._Fields.SET_FIELD).fieldName);
+    assertEquals("binary_field", mdMap.get(CrazyNesting._Fields.BINARY_FIELD).fieldName);
 
     assertEquals(TFieldRequirementType.DEFAULT, mdMap.get(CrazyNesting._Fields.STRING_FIELD).requirementType);
     assertEquals(TFieldRequirementType.REQUIRED, mdMap.get(CrazyNesting._Fields.LIST_FIELD).requirementType);
     assertEquals(TFieldRequirementType.OPTIONAL, mdMap.get(CrazyNesting._Fields.SET_FIELD).requirementType);
 
     assertEquals(TType.STRING, mdMap.get(CrazyNesting._Fields.STRING_FIELD).valueMetaData.type);
+    assertFalse(mdMap.get(CrazyNesting._Fields.STRING_FIELD).valueMetaData.isBinary());
     assertEquals(TType.LIST, mdMap.get(CrazyNesting._Fields.LIST_FIELD).valueMetaData.type);
     assertEquals(TType.SET, mdMap.get(CrazyNesting._Fields.SET_FIELD).valueMetaData.type);
+    assertEquals(TType.STRING, mdMap.get(CrazyNesting._Fields.BINARY_FIELD).valueMetaData.type);
+    assertTrue(mdMap.get(CrazyNesting._Fields.BINARY_FIELD).valueMetaData.isBinary());
 
     // Check nested structures
     assertTrue(mdMap.get(CrazyNesting._Fields.LIST_FIELD).valueMetaData.isContainer());
@@ -295,5 +305,31 @@ public class TestStruct extends TestCase {
 
     assertEquals("JavaTestHelper(req_int:0, req_obj:, req_bin:)", 
         object.toString());
+  }
+
+  public void testBytesBufferFeatures() throws Exception {
+    JavaTestHelper o = new JavaTestHelper();
+    o.setReq_bin((ByteBuffer)null);
+    assertNull(o.getReq_bin());
+    o.setReq_bin((byte[])null);
+    assertNull(o.getReq_bin());
+  }
+
+  public void testJavaSerializable() throws Exception {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    ObjectOutputStream oos = new ObjectOutputStream(baos);
+    
+    OneOfEach ooe = Fixtures.oneOfEach;
+
+    // Serialize ooe the Java way...
+    oos.writeObject(ooe);
+    byte[] serialized = baos.toByteArray();
+
+    // Attempt to deserialize it
+    ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+    ObjectInputStream ois = new ObjectInputStream(bais);
+    OneOfEach ooe2 = (OneOfEach) ois.readObject();
+
+    assertEquals(ooe, ooe2);
   }
 }

@@ -43,6 +43,8 @@ class t_ocaml_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) parsed_options;
+    (void) option_string;
     out_dir_base_ = "gen-ocaml";
   }
 
@@ -68,6 +70,7 @@ class t_ocaml_generator : public t_oop_generator {
   bool struct_member_persistent(t_field *tmember);
   bool struct_member_omitable(t_field *tmember);
   bool struct_member_default_cheaply_comparable(t_field *tmember);
+  std::string struct_member_copy_of(t_type *type, string what);
 
   /**
    * Struct generation code
@@ -80,6 +83,8 @@ class t_ocaml_generator : public t_oop_generator {
   void generate_ocaml_struct_reader(std::ofstream& out, t_struct* tstruct);
   void generate_ocaml_struct_writer(std::ofstream& out, t_struct* tstruct);
   void generate_ocaml_function_helpers(t_function* tfunction);
+  void generate_ocaml_method_copy(std::ofstream& out, const vector<t_field *>& members);
+  void generate_ocaml_member_copy(std::ofstream& out, t_field *member);
 
   /**
    * Service-level generation functions
@@ -310,7 +315,6 @@ void t_ocaml_generator::generate_enum(t_enum* tenum) {
   indent_up();
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
     string name = capitalize((*c_iter)->get_name());
     indent(f_types_) << "| " << name << endl;
@@ -322,15 +326,9 @@ void t_ocaml_generator::generate_enum(t_enum* tenum) {
   indent(f_types_i_) << "val to_i : t -> int" << endl;
   indent_up();
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
+    int value = (*c_iter)->get_value();
     string name = capitalize((*c_iter)->get_name());
-
-    f_types_ <<
-      indent() << "| " << name << " -> " << value << endl;
+    indent(f_types_) << "| " << name << " -> " << value << endl;
   }
   indent_down();
 
@@ -338,15 +336,9 @@ void t_ocaml_generator::generate_enum(t_enum* tenum) {
   indent(f_types_i_) << "val of_i : int -> t" << endl;
   indent_up();
   for(c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
+    int value = (*c_iter)->get_value();
     string name = capitalize((*c_iter)->get_name());
-
-    f_types_ <<
-      indent() << "| " << value << " -> " << name << endl;
+    indent(f_types_) << "| " << value << " -> " << name << endl;
   }
   indent(f_types_) << "| _ -> raise Thrift_error" << endl;
   indent_down();
@@ -374,6 +366,8 @@ void t_ocaml_generator::generate_const(t_const* tconst) {
 string t_ocaml_generator::render_const_value(t_type* type, t_const_value* value) {
   type = get_true_type(type);
   std::ostringstream out;
+  // OCaml requires all floating point numbers contain a decimal point
+  out.setf(ios::showpoint);
   if (type->is_base_type()) {
     t_base_type::t_base tbase = ((t_base_type*)type)->get_base();
     switch (tbase) {
@@ -393,9 +387,7 @@ string t_ocaml_generator::render_const_value(t_type* type, t_const_value* value)
       break;
     case t_base_type::TYPE_DOUBLE:
       if (value->get_type() == t_const_value::CV_INTEGER) {
-        out << value->get_integer();
-      } else if(value->get_double() == 0.0) {
-        out << "0.0";   // OCaml can't bear '0' in place of double.
+        out << value->get_integer() << ".0";
       } else {
         out << value->get_double();
       }
@@ -407,14 +399,9 @@ string t_ocaml_generator::render_const_value(t_type* type, t_const_value* value)
     t_enum* tenum = (t_enum*)type;
     vector<t_enum_value*> constants = tenum->get_constants();
     vector<t_enum_value*>::iterator c_iter;
-    int val = -1;
     for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-      if ((*c_iter)->has_value()) {
-        val = (*c_iter)->get_value();
-      } else {
-        ++val;
-      }
-      if(val == value->get_integer()){
+      int val = (*c_iter)->get_value();
+      if (val == value->get_integer()) {
         indent(out) << capitalize(tenum->get_name()) << "." << capitalize((*c_iter)->get_name());
         break;
       }
@@ -527,6 +514,78 @@ void t_ocaml_generator::generate_ocaml_struct(t_struct* tstruct,
   generate_ocaml_struct_sig(f_types_i_,tstruct,is_exception);
 }
 
+void t_ocaml_generator::generate_ocaml_method_copy(ofstream& out,
+                                                   const vector<t_field *>& members) {
+    vector<t_field*>::const_iterator m_iter;
+
+    /* Create a copy of the current object */
+    indent(out) << "method copy =" << endl;
+    indent_up(); indent_up();
+    indent(out) << "let _new = Oo.copy self in" << endl;
+    for (m_iter = members.begin(); m_iter != members.end(); ++m_iter)
+        generate_ocaml_member_copy(out, *m_iter);
+
+    indent_down();
+    indent(out) << "_new" << endl;
+    indent_down();
+}
+
+string t_ocaml_generator::struct_member_copy_of(t_type *type, string what) {
+    if (type->is_struct() || type->is_xception()) {
+        return what + string ("#copy");
+    } if (type->is_map()) {
+        string copy_of_k = struct_member_copy_of(((t_map *)type)->get_key_type(), "k");
+        string copy_of_v = struct_member_copy_of(((t_map *)type)->get_val_type(), "v");
+
+        if(copy_of_k == "k" && copy_of_v == "v") {
+                return string ("(Hashtbl.copy ") + what + string(")");
+        } else {
+                return string ("((fun oh -> let nh = Hashtbl.create (Hashtbl.length oh) in Hashtbl.iter (fun k v -> Hashtbl.add nh ")
+                    + copy_of_k + string(" ") + copy_of_v
+                    + string(") oh; nh) ")
+                    + what + ")";
+        }
+    } if (type->is_set()) {
+        string copy_of = struct_member_copy_of(((t_set *)type)->get_elem_type(), "k");
+
+        if(copy_of == "k") {
+                return string ("(Hashtbl.copy ") + what + string(")");
+        } else {
+                return string ("((fun oh -> let nh = Hashtbl.create (Hashtbl.length oh) in Hashtbl.iter (fun k v -> Hashtbl.add nh ")
+                    + copy_of + string(" true")
+                    + string(") oh; nh) ")
+                    + what + ")";
+        }
+    } if (type->is_list()) {
+        string copy_of = struct_member_copy_of(((t_list *)type)->get_elem_type(), "x");
+        if(copy_of != "x") {
+            return string("(List.map (fun x -> ")
+                + copy_of + string (") ")
+                + what + string(")");
+        } else {
+            return what;
+        }
+    }
+    return what;
+}
+
+void t_ocaml_generator::generate_ocaml_member_copy(ofstream& out,
+                                                   t_field *tmember) {
+    string mname = decapitalize(tmember->get_name());
+    t_type* type = get_true_type(tmember->get_type());
+
+    string grab_field = string("self#grab_") + mname;
+    string copy_of = struct_member_copy_of(type, grab_field);
+    if(copy_of != grab_field) {
+        indent(out);
+        if(!struct_member_persistent(tmember)) {
+                out << "if _" << mname << " <> None then" << endl;
+                indent(out) << "  ";
+        }
+        out << "_new#set_" << mname << " " << copy_of << ";" << endl;
+    }
+}
+
 /**
  * Generates a struct definition for a thrift data type.
  *
@@ -546,8 +605,10 @@ void t_ocaml_generator::generate_ocaml_struct_definition(ofstream& out,
   if (members.size() > 0) {
     for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
       generate_ocaml_struct_member(out, tname, (*m_iter));
+      out << endl;
     }
   }
+  generate_ocaml_method_copy(out, members);
   generate_ocaml_struct_writer(out, tstruct);
   indent_down();
   indent(out) << "end" << endl;
@@ -591,7 +652,20 @@ void t_ocaml_generator::generate_ocaml_struct_member(ofstream& out,
         indent(out) << "method get_" << mname << " = _" << mname << endl;
         indent(out) << "method grab_" << mname << " = match _"<<mname<<" with None->raise (Field_empty \""<<tname<<"."<<mname<<"\") | Some " << x <<" -> " << x << endl;
         indent(out) << "method set_" << mname << " " << x << " = _" << mname << " <- Some " << x << endl;
+        indent(out) << "method unset_" << mname << " = _" << mname << " <- None" << endl;
   }
+
+  indent(out) << "method reset_" << mname << " = _" << mname << " <- ";
+  if(val) {
+    if(struct_member_persistent(tmember))
+        out << render_const_value(tmember->get_type(), tmember->get_value()) << endl;
+    else
+        out << "Some " << render_const_value(tmember->get_type(), tmember->get_value()) << endl;
+  } else {
+    out << "None" << endl;
+  }
+
+
 }
 
 /**
@@ -659,7 +733,7 @@ void t_ocaml_generator::generate_ocaml_struct_sig(ofstream& out,
   vector<t_field*>::const_iterator m_iter;
   string tname = type_name(tstruct);
   indent(out) << "class " << tname << " :" << endl;
-  indent(out) << "object" << endl;
+  indent(out) << "object ('a)" << endl;
 
   indent_up();
 
@@ -671,8 +745,12 @@ void t_ocaml_generator::generate_ocaml_struct_sig(ofstream& out,
       indent(out) << "method get_" << mname << " : " << type << " option" << endl;
       indent(out) << "method grab_" << mname << " : " << type << endl;
       indent(out) << "method set_" << mname << " : " << type << " -> unit" << endl;
+      if(!struct_member_persistent(*m_iter))
+        indent(out) << "method unset_" << mname << " : unit" << endl;
+      indent(out) << "method reset_" << mname << " : unit" << endl;
     }
   }
+  indent(out) << "method copy : 'a" << endl;
   indent(out) << "method write : Protocol.t -> unit" << endl;
   indent_down();
   indent(out) << "end" << endl;
@@ -1207,6 +1285,7 @@ void t_ocaml_generator::generate_service_server(t_service* tservice) {
  */
 void t_ocaml_generator::generate_process_function(t_service* tservice,
                                                t_function* tfunction) {
+  (void) tservice;
   // Open function
   indent(f_service_) <<
     "method private process_" << tfunction->get_name() <<
@@ -1548,6 +1627,7 @@ void t_ocaml_generator::generate_serialize_field(ofstream &out,
 void t_ocaml_generator::generate_serialize_struct(ofstream &out,
                                                t_struct* tstruct,
                                                string prefix) {
+  (void) tstruct;
   indent(out) << prefix << "#write(oprot)";
 }
 
@@ -1797,4 +1877,5 @@ string t_ocaml_generator::render_ocaml_type(t_type* type) {
 }
 
 
-THRIFT_REGISTER_GENERATOR(ocaml, "OCaml", "");
+THRIFT_REGISTER_GENERATOR(ocaml, "OCaml", "")
+

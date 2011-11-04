@@ -42,7 +42,7 @@ using namespace thrift::test;
 // Current time, microseconds since the epoch
 uint64_t now()
 {
-  long long ret;
+  int64_t ret;
   struct timeval tv;
 
   gettimeofday(&tv, NULL);
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
   }
 
 
-  shared_ptr<TTransport> transport;
+  shared_ptr<TBufferBase> transport;
 
   shared_ptr<TSocket> socket(new TSocket(host, port));
 
@@ -87,8 +87,9 @@ int main(int argc, char** argv) {
     transport = bufferedSocket;
   }
 
-  shared_ptr<TBinaryProtocol> protocol(new TBinaryProtocol(transport));
-  ThriftTestClient testClient(protocol);
+  shared_ptr< TBinaryProtocolT<TBufferBase> > protocol(
+      new TBinaryProtocolT<TBufferBase>(transport));
+  ThriftTestClientT< TBinaryProtocolT<TBufferBase> > testClient(protocol);
 
   uint64_t time_min = 0;
   uint64_t time_max = 0;
@@ -297,23 +298,23 @@ int main(int argc, char** argv) {
      * ENUM TEST
      */
     printf("testEnum(ONE)");
-    Numberz ret = testClient.testEnum(ONE);
+    Numberz::type ret = testClient.testEnum(Numberz::ONE);
     printf(" = %d\n", ret);
 
     printf("testEnum(TWO)");
-    ret = testClient.testEnum(TWO);
+    ret = testClient.testEnum(Numberz::TWO);
     printf(" = %d\n", ret);
 
     printf("testEnum(THREE)");
-    ret = testClient.testEnum(THREE);
+    ret = testClient.testEnum(Numberz::THREE);
     printf(" = %d\n", ret);
 
     printf("testEnum(FIVE)");
-    ret = testClient.testEnum(FIVE);
+    ret = testClient.testEnum(Numberz::FIVE);
     printf(" = %d\n", ret);
 
     printf("testEnum(EIGHT)");
-    ret = testClient.testEnum(EIGHT);
+    ret = testClient.testEnum(Numberz::EIGHT);
     printf(" = %d\n", ret);
 
     /**
@@ -345,7 +346,7 @@ int main(int argc, char** argv) {
      * INSANITY TEST
      */
     Insanity insane;
-    insane.userMap.insert(make_pair(FIVE, 5000));
+    insane.userMap.insert(make_pair(Numberz::FIVE, 5000));
     Xtruct truck;
     truck.string_thing = "Truck";
     truck.byte_thing = 8;
@@ -353,19 +354,19 @@ int main(int argc, char** argv) {
     truck.i64_thing = 8;
     insane.xtructs.push_back(truck);
     printf("testInsanity()");
-    map<UserId, map<Numberz,Insanity> > whoa;
+    map<UserId, map<Numberz::type,Insanity> > whoa;
     testClient.testInsanity(whoa, insane);
     printf(" = {");
-    map<UserId, map<Numberz,Insanity> >::const_iterator i_iter;
+    map<UserId, map<Numberz::type,Insanity> >::const_iterator i_iter;
     for (i_iter = whoa.begin(); i_iter != whoa.end(); ++i_iter) {
       printf("%"PRId64" => {", i_iter->first);
-      map<Numberz,Insanity>::const_iterator i2_iter;
+      map<Numberz::type,Insanity>::const_iterator i2_iter;
       for (i2_iter = i_iter->second.begin();
            i2_iter != i_iter->second.end();
            ++i2_iter) {
         printf("%d => {", i2_iter->first);
-        map<Numberz, UserId> userMap = i2_iter->second.userMap;
-        map<Numberz, UserId>::const_iterator um;
+        map<Numberz::type, UserId> userMap = i2_iter->second.userMap;
+        map<Numberz::type, UserId>::const_iterator um;
         printf("{");
         for (um = userMap.begin(); um != userMap.end(); ++um) {
           printf("%d => %"PRId64", ", um->first, um->second);

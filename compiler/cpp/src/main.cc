@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <time.h>
 #include <string>
 #include <algorithm>
 #include <sys/types.h>
@@ -188,7 +189,6 @@ char *saferealpath(const char *path, char *resolved_path) {
   if (len == 0 || len > MAX_PATH - 1){
     strcpy(resolved_path, path);
   } else {
-    CharLowerBuff(buf, len);
     strcpy(resolved_path, buf);
   }
 
@@ -715,11 +715,15 @@ void validate_const_rec(std::string name, t_type* type, t_const_value* value) {
       throw "type error: const \"" + name + "\" was declared as enum";
     }
 
+    // see if there's a dot in the identifier
+    std::string name_portion = value->get_identifier_name();
+
     const vector<t_enum_value*>& enum_values = ((t_enum*)type)->get_constants();
     vector<t_enum_value*>::const_iterator c_iter;
     bool found = false;
+
     for (c_iter = enum_values.begin(); c_iter != enum_values.end(); ++c_iter) {
-      if ((*c_iter)->get_name() == value->get_identifier()) {
+      if ((*c_iter)->get_name() == name_portion) {
         found = true;
         break;
       }

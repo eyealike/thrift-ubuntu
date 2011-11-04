@@ -32,19 +32,23 @@ namespace apache { namespace thrift { namespace transport {
 
 
 uint32_t TBufferedTransport::readSlow(uint8_t* buf, uint32_t len) {
-  uint32_t want = len;
   uint32_t have = rBound_ - rBase_;
 
   // We should only take the slow path if we can't satisfy the read
   // with the data already in the buffer.
-  assert(have < want);
+  assert(have < len);
 
-  // Copy out whatever we have.
+  // If we have some date in the buffer, copy it out and return it.
+  // We have to return it without attempting to read more, since we aren't
+  // guaranteed that the underlying transport actually has more data, so
+  // attempting to read from it could block.
   if (have > 0) {
     memcpy(buf, rBase_, have);
-    want -= have;
-    buf += have;
+    setReadBuffer(rBuf_.get(), 0);
+    return have;
   }
+
+  // No data is available in our buffer.
   // Get more from underlying transport up to buffer size.
   // Note that this makes a lot of sense if len < rBufSize_
   // and almost no sense otherwise.  TODO(dreiss): Fix that
@@ -52,12 +56,11 @@ uint32_t TBufferedTransport::readSlow(uint8_t* buf, uint32_t len) {
   setReadBuffer(rBuf_.get(), transport_->read(rBuf_.get(), rBufSize_));
 
   // Hand over whatever we have.
-  uint32_t give = std::min(want, static_cast<uint32_t>(rBound_ - rBase_));
+  uint32_t give = std::min(len, static_cast<uint32_t>(rBound_ - rBase_));
   memcpy(buf, rBase_, give);
   rBase_ += give;
-  want -= give;
 
-  return (len - want);
+  return give;
 }
 
 void TBufferedTransport::writeSlow(const uint8_t* buf, uint32_t len) {
@@ -110,43 +113,11 @@ void TBufferedTransport::writeSlow(const uint8_t* buf, uint32_t len) {
 }
 
 const uint8_t* TBufferedTransport::borrowSlow(uint8_t* buf, uint32_t* len) {
-  // If the request is bigger than our buffer, we are hosed.
-  if (*len > rBufSize_) {
-    return NULL;
-  }
-
-  // The number of bytes of data we have already.
-  uint32_t have = rBound_ - rBase_;
-  // The number of additional bytes we need from the underlying transport.
-  int32_t need = *len - have;
-  // The space from the start of the buffer to the end of our data.
-  uint32_t offset = rBound_ - rBuf_.get();
-  assert(need > 0);
-
-  // If we have less than half our buffer space available, shift the data
-  // we have down to the start.  If the borrow is big compared to our buffer,
-  // this could be kind of a waste, but if the borrow is small, it frees up
-  // space at the end of our buffer to do a bigger single read from the
-  // underlying transport.  Also, if our needs extend past the end of the
-  // buffer, we have to do a copy no matter what.
-  if ((offset > rBufSize_/2) || (offset + need > rBufSize_)) {
-    memmove(rBuf_.get(), rBase_, have);
-    setReadBuffer(rBuf_.get(), have);
-    offset = have;
-  }
-
-  // First try to fill up the buffer.
-  uint32_t got = transport_->read(rBound_, rBufSize_ - offset);
-  rBound_ += got;
-  need -= got;
-
-  // If that fails, readAll until we get what we need.
-  if (need > 0) {
-    rBound_ += transport_->readAll(rBound_, need);
-  }
-
-  *len = rBound_ - rBase_;
-  return rBase_;
+  (void) buf;
+  (void) len;
+  // Simply return NULL.  We don't know if there is actually data available on
+  // the underlying transport, so calling read() might block.
+  return NULL;
 }
 
 void TBufferedTransport::flush()  {
@@ -181,7 +152,10 @@ uint32_t TFramedTransport::readSlow(uint8_t* buf, uint32_t len) {
   }
 
   // Read another frame.
-  readFrame();
+  if (!readFrame()) {
+    // EOF.  No frame available.
+    return 0;
+  }
 
   // TODO(dreiss): Should we warn when reads cross frames?
 
@@ -194,13 +168,33 @@ uint32_t TFramedTransport::readSlow(uint8_t* buf, uint32_t len) {
   return (len - want);
 }
 
-void TFramedTransport::readFrame() {
+bool TFramedTransport::readFrame() {
   // TODO(dreiss): Think about using readv here, even though it would
   // result in (gasp) read-ahead.
 
   // Read the size of the next frame.
+  // We can't use readAll(&sz, sizeof(sz)), since that always throws an
+  // exception on EOF.  We want to throw an exception only if EOF occurs after
+  // partial size data.
   int32_t sz;
-  transport_->readAll((uint8_t*)&sz, sizeof(sz));
+  uint32_t size_bytes_read = 0;
+  while (size_bytes_read < sizeof(sz)) {
+    uint8_t* szp = reinterpret_cast<uint8_t*>(&sz) + size_bytes_read;
+    uint32_t bytes_read = transport_->read(szp, sizeof(sz) - size_bytes_read);
+    if (bytes_read == 0) {
+      if (size_bytes_read == 0) {
+        // EOF before any data was read.
+        return false;
+      } else {
+        // EOF after a partial frame header.  Raise an exception.
+        throw TTransportException(TTransportException::END_OF_FILE,
+                                  "No more data to read after "
+                                  "partial frame header.");
+      }
+    }
+    size_bytes_read += bytes_read;
+  }
+
   sz = ntohl(sz);
 
   if (sz < 0) {
@@ -214,26 +208,29 @@ void TFramedTransport::readFrame() {
   }
   transport_->readAll(rBuf_.get(), sz);
   setReadBuffer(rBuf_.get(), sz);
+  return true;
 }
 
 void TFramedTransport::writeSlow(const uint8_t* buf, uint32_t len) {
   // Double buffer size until sufficient.
   uint32_t have = wBase_ - wBuf_.get();
-  while (wBufSize_ < len + have) {
-    wBufSize_ *= 2;
+  uint32_t new_size = wBufSize_;
+  while (new_size < len + have) {
+    new_size = new_size > 0 ? new_size * 2 : 1;
   }
 
   // TODO(dreiss): Consider modifying this class to use malloc/free
   // so we can use realloc here.
 
   // Allocate new buffer.
-  uint8_t* new_buf = new uint8_t[wBufSize_];
+  uint8_t* new_buf = new uint8_t[new_size];
 
   // Copy the old buffer to the new one.
   memcpy(new_buf, wBuf_.get(), have);
 
   // Now point buf to the new one.
   wBuf_.reset(new_buf);
+  wBufSize_ = new_size;
   wBase_ = wBuf_.get() + have;
   wBound_ = wBuf_.get() + wBufSize_;
 
@@ -266,13 +263,23 @@ void TFramedTransport::flush()  {
   transport_->flush();
 }
 
+uint32_t TFramedTransport::writeEnd() {
+  return wBase_ - wBuf_.get();
+}
+
 const uint8_t* TFramedTransport::borrowSlow(uint8_t* buf, uint32_t* len) {
+  (void) buf;
+  (void) len;
   // Don't try to be clever with shifting buffers.
   // If the fast path failed let the protocol use its slow path.
   // Besides, who is going to try to borrow across messages?
   return NULL;
 }
 
+uint32_t TFramedTransport::readEnd() {
+  // include framing bytes
+  return rBound_ - rBuf_.get() + sizeof(uint32_t);
+}
 
 void TMemoryBuffer::computeRead(uint32_t len, uint8_t** out_start, uint32_t* out_give) {
   // Correct rBound_ so we can use the fast path in the future.
@@ -327,24 +334,25 @@ void TMemoryBuffer::ensureCanWrite(uint32_t len) {
   }
 
   // Grow the buffer as necessary.
+  uint32_t new_size = bufferSize_;
   while (len > avail) {
-    bufferSize_ *= 2;
-    wBound_ = buffer_ + bufferSize_;
-    avail = available_write();
+    new_size = new_size > 0 ? new_size * 2 : 1;
+    avail = available_write() + (new_size - bufferSize_);
   }
 
   // Allocate into a new pointer so we don't bork ours if it fails.
-  void* new_buffer = std::realloc(buffer_, bufferSize_);
+  void* new_buffer = std::realloc(buffer_, new_size);
   if (new_buffer == NULL) {
-    throw TTransportException("Out of memory.");
+    throw std::bad_alloc();
   }
+  bufferSize_ = new_size;
 
   ptrdiff_t offset = (uint8_t*)new_buffer - buffer_;
   buffer_ += offset;
   rBase_ += offset;
   rBound_ += offset;
   wBase_ += offset;
-  wBound_ += offset;
+  wBound_ = buffer_ + bufferSize_;
 }
 
 void TMemoryBuffer::writeSlow(const uint8_t* buf, uint32_t len) {
@@ -364,6 +372,7 @@ void TMemoryBuffer::wroteBytes(uint32_t len) {
 }
 
 const uint8_t* TMemoryBuffer::borrowSlow(uint8_t* buf, uint32_t* len) {
+  (void) buf;
   rBound_ = wBase_;
   if (available_read() >= *len) {
     *len = available_read();

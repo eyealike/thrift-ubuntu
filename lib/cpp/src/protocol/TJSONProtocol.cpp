@@ -198,7 +198,7 @@ static uint8_t hexVal(uint8_t ch) {
     return ch - '0';
   }
   else if ((ch >= 'a') && (ch <= 'f')) {
-    return ch - 'a';
+    return ch - 'a' + 10;
   }
   else {
     throw TProtocolException(TProtocolException::INVALID_DATA,
@@ -215,7 +215,7 @@ static uint8_t hexChar(uint8_t val) {
     return val + '0';
   }
   else {
-    return val + 'a';
+    return val - 10 + 'a';
   }
 }
 
@@ -259,6 +259,7 @@ class TJSONContext {
    * Write context data to the transport. Default is to do nothing.
    */
   virtual uint32_t write(TTransport &trans) {
+    (void) trans;
     return 0;
   };
 
@@ -266,6 +267,7 @@ class TJSONContext {
    * Read context data from the transport. Default is to do nothing.
    */
   virtual uint32_t read(TJSONProtocol::LookaheadReader &reader) {
+    (void) reader;
     return 0;
   };
 
@@ -361,7 +363,8 @@ public:
 
 
 TJSONProtocol::TJSONProtocol(boost::shared_ptr<TTransport> ptrans) :
-  TProtocol(ptrans),
+  TVirtualProtocol<TJSONProtocol>(ptrans),
+  trans_(ptrans.get()),
   context_(new TJSONContext()),
   reader_(*ptrans) {
 }
@@ -564,6 +567,7 @@ uint32_t TJSONProtocol::writeMessageEnd() {
 }
 
 uint32_t TJSONProtocol::writeStructBegin(const char* name) {
+  (void) name;
   return writeJSONObjectStart();
 }
 
@@ -574,6 +578,7 @@ uint32_t TJSONProtocol::writeStructEnd() {
 uint32_t TJSONProtocol::writeFieldBegin(const char* name,
                                         const TType fieldType,
                                         const int16_t fieldId) {
+  (void) name;
   uint32_t result = writeJSONInteger(fieldId);
   result += writeJSONObjectStart();
   result += writeJSONString(getTypeNameForTypeID(fieldType));
@@ -877,6 +882,7 @@ uint32_t TJSONProtocol::readMessageEnd() {
 }
 
 uint32_t TJSONProtocol::readStructBegin(std::string& name) {
+  (void) name;
   return readJSONObjectStart();
 }
 
@@ -887,6 +893,7 @@ uint32_t TJSONProtocol::readStructEnd() {
 uint32_t TJSONProtocol::readFieldBegin(std::string& name,
                                        TType& fieldType,
                                        int16_t& fieldId) {
+  (void) name;
   uint32_t result = 0;
   // Check if we hit the end of the list
   uint8_t ch = reader_.peek();

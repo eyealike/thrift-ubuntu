@@ -44,6 +44,8 @@ class t_erl_generator : public t_generator {
       const std::string& option_string)
     : t_generator(program)
   {
+    (void) parsed_options;
+    (void) option_string;
     program_name_[0] = tolower(program_name_[0]);
     service_name_[0] = tolower(service_name_[0]);
     out_dir_base_ = "gen-erl";
@@ -213,6 +215,7 @@ void t_erl_generator::hrl_header(ostream& out, string name) {
 }
 
 void t_erl_generator::hrl_footer(ostream& out, string name) {
+  (void) name;
   out << "-endif." << endl;
 }
 
@@ -274,6 +277,7 @@ void t_erl_generator::close_generator() {
  * @param ttypedef The type definition
  */
 void t_erl_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
 }
 
 /**
@@ -286,19 +290,11 @@ void t_erl_generator::generate_enum(t_enum* tenum) {
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
 
-  int value = -1;
-
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     string name = capitalize((*c_iter)->get_name());
-
-    f_types_hrl_file_ <<
-      indent() << "-define(" << program_name_ << "_" << name << ", " << value << ")."<< endl;
+    indent(f_types_hrl_file_) <<
+      "-define(" << program_name_ << "_" << tenum->get_name() << "_" << name << ", " << value << ")."<< endl;
   }
 
   f_types_hrl_file_ << endl;
@@ -480,6 +476,7 @@ void t_erl_generator::generate_erl_struct_definition(ostream& out,
                                                      bool is_exception,
                                                      bool is_result)
 {
+  (void) is_result;
   const vector<t_field*>& members = tstruct->get_members();
   vector<t_field*>::const_iterator m_iter;
 
@@ -620,6 +617,7 @@ void t_erl_generator::generate_service_helpers(t_service* tservice) {
  * @param tfunction The function
  */
 void t_erl_generator::generate_erl_function_helpers(t_function* tfunction) {
+  (void) tfunction;
 }
 
 /**
@@ -649,8 +647,8 @@ void t_erl_generator::generate_service_interface(t_service* tservice) {
                          << "_thrift:function_info(Function, InfoType)." << endl;
       indent_down();
   } else {
-      // Dummy function_info so we don't worry about the ;s
-      indent(f_service_) << "function_info(xxx, dummy) -> dummy." << endl;
+      // Use a special return code for nonexistent functions
+      indent(f_service_) << "function_info(_Func, _Info) -> no_function." << endl;
   }
 
   indent(f_service_) << endl;
@@ -663,7 +661,7 @@ void t_erl_generator::generate_service_interface(t_service* tservice) {
  */
 void t_erl_generator::generate_function_info(t_service* tservice,
                                                 t_function* tfunction) {
-
+  (void) tservice;
   string name_atom = "'" + tfunction->get_name() + "'";
 
 
@@ -929,4 +927,5 @@ std::string t_erl_generator::type_module(t_type* ttype) {
   return uncapitalize(ttype->get_program()->get_name()) + "_types";
 }
 
-THRIFT_REGISTER_GENERATOR(erl, "Erlang", "");
+THRIFT_REGISTER_GENERATOR(erl, "Erlang", "")
+

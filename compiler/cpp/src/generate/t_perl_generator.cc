@@ -43,6 +43,8 @@ class t_perl_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) parsed_options;
+    (void) option_string;
     out_dir_base_ = "gen-perl";
     escape_['$'] = "\\$";
     escape_['@'] = "\\@";
@@ -291,7 +293,9 @@ void t_perl_generator::close_generator() {
  *
  * @param ttypedef The type definition
  */
-void t_perl_generator::generate_typedef(t_typedef* ttypedef) {}
+void t_perl_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
+}
 
 /**
  * Generates code for an enumerated type. Since define is expensive to lookup
@@ -304,15 +308,9 @@ void t_perl_generator::generate_enum(t_enum* tenum) {
 
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
-    f_types_ << "use constant "<<(*c_iter)->get_name() << " => " << value << ";" << endl;
+    int value = (*c_iter)->get_value();
+    f_types_ << "use constant "<< (*c_iter)->get_name() << " => " << value << ";" << endl;
   }
 }
 
@@ -1260,6 +1258,7 @@ void t_perl_generator::generate_deserialize_field(ofstream &out,
                                                   t_field* tfield,
                                                   string prefix,
                                                   bool inclass) {
+  (void) inclass;
   t_type* type = get_true_type(tfield->get_type());
 
   if (type->is_void()) {
@@ -1562,7 +1561,8 @@ void t_perl_generator::generate_serialize_field(ofstream &out,
 void t_perl_generator::generate_serialize_struct(ofstream &out,
                                                  t_struct* tstruct,
                                                  string prefix) {
-    indent(out) <<
+  (void) tstruct;
+  indent(out) <<
       "$xfer += $" << prefix << "->write($output);" << endl;
 }
 
@@ -1809,4 +1809,5 @@ string t_perl_generator ::type_to_enum(t_type* type) {
   throw "INVALID TYPE IN type_to_enum: " + type->get_name();
 }
 
-THRIFT_REGISTER_GENERATOR(perl, "Perl", "");
+THRIFT_REGISTER_GENERATOR(perl, "Perl", "")
+

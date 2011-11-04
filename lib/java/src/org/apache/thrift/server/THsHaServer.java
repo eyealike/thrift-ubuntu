@@ -22,197 +22,86 @@ package org.apache.thrift.server;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.thrift.TProcessor;
-import org.apache.thrift.TProcessorFactory;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TNonblockingServerTransport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An extension of the TNonblockingServer to a Half-Sync/Half-Async server.
  * Like TNonblockingServer, it relies on the use of TFramedTransport.
  */
 public class THsHaServer extends TNonblockingServer {
+  private static final Logger LOGGER =
+    LoggerFactory.getLogger(THsHaServer.class.getName());
+
+  public static class Args extends AbstractNonblockingServerArgs<Args> {
+    private int workerThreads = 5;
+    private int stopTimeoutVal = 60;
+    private TimeUnit stopTimeoutUnit = TimeUnit.SECONDS;
+    private ExecutorService executorService = null;
+
+    public Args(TNonblockingServerTransport transport) {
+      super(transport);
+    }
+
+    public Args workerThreads(int i) {
+      workerThreads = i;
+      return this;
+    }
+
+    public int getWorkerThreads() {
+      return workerThreads;
+    }
+
+    public int getStopTimeoutVal() {
+      return stopTimeoutVal;
+    }
+
+    public Args stopTimeoutVal(int stopTimeoutVal) {
+      this.stopTimeoutVal = stopTimeoutVal;
+      return this;
+    }
+
+    public TimeUnit getStopTimeoutUnit() {
+      return stopTimeoutUnit;
+    }
+
+    public Args stopTimeoutUnit(TimeUnit stopTimeoutUnit) {
+      this.stopTimeoutUnit = stopTimeoutUnit;
+      return this;
+    }
+
+    public ExecutorService getExecutorService() {
+      return executorService;
+    }
+
+    public Args executorService(ExecutorService executorService) {
+      this.executorService = executorService;
+      return this;
+    }
+  }
 
   // This wraps all the functionality of queueing and thread pool management
   // for the passing of Invocations from the Selector to workers.
   private ExecutorService invoker;
 
-  protected final int worker_threads;
-  protected final int stop_timeout_val;
-  protected final TimeUnit stop_timeout_unit;
-
   /**
-   * Create server with given processor, and server transport. Default server
-   * options, TBinaryProtocol for the protocol, and TFramedTransport.Factory on
-   * both input and output transports. A TProcessorFactory will be created that
-   * always returns the specified processor.
+   * Create server with every option fully specified, and with an injected
+   * ExecutorService
    */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport) {
-    this(processor, serverTransport, new Options());
-  }
+  public THsHaServer(Args args) {
+    super(args);
 
-  /**
-   * Create server with given processor, server transport, and server options
-   * using TBinaryProtocol for the protocol, and TFramedTransport.Factory on
-   * both input and output transports. A TProcessorFactory will be created that
-   * always returns the specified processor.
-   */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport,
-                      Options options) {
-    this(new TProcessorFactory(processor), serverTransport, options);
-  }
-
-  /**
-   * Create server with specified processor factory and server transport. Uses
-   * default options. TBinaryProtocol is assumed. TFramedTransport.Factory is
-   * used on both input and output transports.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport) {
-    this(processorFactory, serverTransport, new Options());
-  }
-
-  /**
-   * Create server with specified processor factory, server transport, and server
-   * options. TBinaryProtocol is assumed. TFramedTransport.Factory is used on
-   * both input and output transports.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport,
-                      Options options) {
-    this(processorFactory, serverTransport, new TFramedTransport.Factory(),
-      new TBinaryProtocol.Factory(), options);
-  }
-
-  /**
-   * Server with specified processor, server transport, and in/out protocol
-   * factory. Defaults will be used for in/out transport factory and server
-   * options.
-   */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport,
-                      TProtocolFactory protocolFactory) {
-    this(processor, serverTransport, protocolFactory, new Options());
-  }
-
-  /**
-   * Server with specified processor, server transport, and in/out protocol
-   * factory. Defaults will be used for in/out transport factory and server
-   * options.
-   */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport,
-                      TProtocolFactory protocolFactory,
-                      Options options) {
-    this(new TProcessorFactory(processor), serverTransport,
-      new TFramedTransport.Factory(),
-      protocolFactory, protocolFactory, 
-      options);
-  }
-
-  /**
-   * Create server with specified processor, server transport, in/out
-   * transport factory, in/out protocol factory, and default server options. A
-   * processor factory will be created that always returns the specified
-   * processor.
-   */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory transportFactory,
-                      TProtocolFactory protocolFactory) {
-    this(new TProcessorFactory(processor), serverTransport,
-      transportFactory, protocolFactory);
-  }
-
-  /**
-   * Create server with specified processor factory, server transport, in/out
-   * transport factory, in/out protocol factory, and default server options.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory transportFactory,
-                      TProtocolFactory protocolFactory) {
-    this(processorFactory, serverTransport,
-      transportFactory,
-      protocolFactory, protocolFactory, new Options());
-  }
-
-  /**
-   * Create server with specified processor factory, server transport, in/out
-   * transport factory, in/out protocol factory, and server options.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory transportFactory,
-                      TProtocolFactory protocolFactory,
-                      Options options) {
-    this(processorFactory, serverTransport,
-      transportFactory,
-      protocolFactory, protocolFactory,
-      options);
-  }
-
-  /**
-   * Create server with everything specified, except use default server options.
-   */
-  public THsHaServer( TProcessor processor,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory outputTransportFactory,
-                      TProtocolFactory inputProtocolFactory,
-                      TProtocolFactory outputProtocolFactory) {
-    this(new TProcessorFactory(processor), serverTransport,
-      outputTransportFactory,
-      inputProtocolFactory, outputProtocolFactory);
-  }
-
-  /**
-   * Create server with everything specified, except use default server options.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory outputTransportFactory,
-                      TProtocolFactory inputProtocolFactory,
-                      TProtocolFactory outputProtocolFactory)
-  {
-    this(processorFactory, serverTransport,
-      outputTransportFactory,
-      inputProtocolFactory, outputProtocolFactory, new Options());
-  }
-
-  /**
-   * Create server with every option fully specified.
-   */
-  public THsHaServer( TProcessorFactory processorFactory,
-                      TNonblockingServerTransport serverTransport,
-                      TFramedTransport.Factory outputTransportFactory,
-                      TProtocolFactory inputProtocolFactory,
-                      TProtocolFactory outputProtocolFactory,
-                      Options options)
-  {
-    super(processorFactory, serverTransport,
-      outputTransportFactory,
-      inputProtocolFactory, outputProtocolFactory,
-      options);
-
-    worker_threads = options.workerThreads;
-    stop_timeout_val = options.stopTimeoutVal;
-    stop_timeout_unit = options.stopTimeoutUnit;
+    invoker = args.executorService == null ? createInvokerPool(args) : args.executorService;
   }
 
   /** @inheritDoc */
   @Override
   public void serve() {
-    if (!startInvokerPool()) {
-      return;
-    }
-
     // start listening, or exit
     if (!startListening()) {
       return;
@@ -223,10 +112,14 @@ public class THsHaServer extends TNonblockingServer {
       return;
     }
 
+    setServing(true);
+
     // this will block while we serve
     joinSelector();
 
     gracefullyShutdownInvokerPool();
+
+    setServing(false);
 
     // do a little cleanup
     stopListening();
@@ -234,13 +127,19 @@ public class THsHaServer extends TNonblockingServer {
     // ungracefully shut down the invoker pool?
   }
 
-  protected boolean startInvokerPool() {
-    // start the invoker pool
-    LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>();
-    invoker = new ThreadPoolExecutor(worker_threads, worker_threads,
-      stop_timeout_val, stop_timeout_unit, queue);
+  /**
+   * Helper to create an invoker pool
+   */
+  protected static ExecutorService createInvokerPool(Args options) {
+    int workerThreads = options.workerThreads;
+    int stopTimeoutVal = options.stopTimeoutVal;
+    TimeUnit stopTimeoutUnit = options.stopTimeoutUnit;
 
-    return true;
+    LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>();
+    ExecutorService invoker = new ThreadPoolExecutor(workerThreads, workerThreads,
+      stopTimeoutVal, stopTimeoutUnit, queue);
+
+    return invoker;
   }
 
   protected void gracefullyShutdownInvokerPool() {
@@ -270,8 +169,19 @@ public class THsHaServer extends TNonblockingServer {
    * invoker service instead of immediately invoking. The thread pool takes care of the rest.
    */
   @Override
-  protected void requestInvoke(FrameBuffer frameBuffer) {
-    invoker.execute(new Invocation(frameBuffer));
+  protected boolean requestInvoke(FrameBuffer frameBuffer) {
+    try {
+      Runnable invocation = getRunnable(frameBuffer);
+      invoker.execute(invocation);
+      return true;
+    } catch (RejectedExecutionException rx) {
+      LOGGER.warn("ExecutorService rejected execution!", rx);
+      return false;
+    }
+  }
+
+  protected Runnable getRunnable(FrameBuffer frameBuffer){
+	return new Invocation(frameBuffer);
   }
 
   /**
@@ -290,11 +200,5 @@ public class THsHaServer extends TNonblockingServer {
     public void run() {
       frameBuffer.invoke();
     }
-  }
-
-  public static class Options extends TNonblockingServer.Options {
-    public int workerThreads = 5;
-    public int stopTimeoutVal = 60;
-    public TimeUnit stopTimeoutUnit = TimeUnit.SECONDS;
   }
 }

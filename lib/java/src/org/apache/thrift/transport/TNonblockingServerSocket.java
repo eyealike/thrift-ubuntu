@@ -30,10 +30,14 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Wrapper around ServerSocketChannel
  */
 public class TNonblockingServerSocket extends TNonblockingServerTransport {
+  private static final Logger LOGGER = LoggerFactory.getLogger(TNonblockingServerTransport.class.getName());
 
   /**
    * This channel is where all the nonblocking magic happens.
@@ -46,29 +50,9 @@ public class TNonblockingServerSocket extends TNonblockingServerTransport {
   private ServerSocket serverSocket_ = null;
 
   /**
-   * Port to listen on
-   */
-  private int port_ = 0;
-
-  /**
    * Timeout for client sockets from accept
    */
   private int clientTimeout_ = 0;
-
-  /**
-   * Creates a server socket from underlying socket object
-   */
-  // public TNonblockingServerSocket(ServerSocket serverSocket) {
-  //   this(serverSocket, 0);
-  // }
-
-  /**
-   * Creates a server socket from underlying socket object
-   */
-  // public TNonblockingServerSocket(ServerSocket serverSocket, int clientTimeout) {
-  //   serverSocket_ = serverSocket;
-  //   clientTimeout_ = clientTimeout;
-  // }
 
   /**
    * Creates just a port listening server socket
@@ -82,8 +66,7 @@ public class TNonblockingServerSocket extends TNonblockingServerTransport {
    */
   public TNonblockingServerSocket(int port, int clientTimeout) throws TTransportException {
     this(new InetSocketAddress(port), clientTimeout);
-    port_ = port;
-  }  
+  }
 
   public TNonblockingServerSocket(InetSocketAddress bindAddr) throws TTransportException {
     this(bindAddr, 0);
@@ -152,8 +135,7 @@ public class TNonblockingServerSocket extends TNonblockingServerTransport {
       try {
         serverSocket_.close();
       } catch (IOException iox) {
-        System.err.println("WARNING: Could not close server socket: " +
-                           iox.getMessage());
+        LOGGER.warn("WARNING: Could not close server socket: " + iox.getMessage());
       }
       serverSocket_ = null;
     }

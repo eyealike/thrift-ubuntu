@@ -66,6 +66,19 @@ class t_generator {
                                   const std::string& comment_end);
 
   /**
+   * check whether sub-namespace declaraction is used by generator.
+   * e.g. allow
+   * namespace py.twisted bar
+   * to specify namespace to use when -gen py:twisted is specified.
+   * Will be called with subnamespace, i.e. is_valid_namespace("twisted")
+   * will be called for the above example.
+   */
+  static bool is_valid_namespace(const std::string& sub_namespace) {
+    (void) sub_namespace;
+    return false;
+  }
+
+  /**
    * Escape string to use one in generated sources.
    */
   virtual std::string escape_string(const std::string &in) const;
@@ -92,7 +105,9 @@ class t_generator {
 
   virtual void generate_typedef  (t_typedef*  ttypedef)  = 0;
   virtual void generate_enum     (t_enum*     tenum)     = 0;
-  virtual void generate_const    (t_const*    tconst) {}
+  virtual void generate_const    (t_const*    tconst) {
+    (void) tconst;
+  }
   virtual void generate_struct   (t_struct*   tstruct)   = 0;
   virtual void generate_service  (t_service*  tservice)  = 0;
   virtual void generate_xception (t_struct*   txception) {
@@ -227,10 +242,7 @@ class t_generator {
    * Get the true type behind a series of typedefs.
    */
   static t_type* get_true_type(t_type* type) {
-    while (type->is_typedef()) {
-      type = ((t_typedef*)type)->get_type();
-    }
-    return type;
+    return type->get_true_type();
   }
 
  protected:

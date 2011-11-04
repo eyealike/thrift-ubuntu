@@ -44,6 +44,7 @@ class t_as3_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) option_string;
     std::map<std::string, std::string>::const_iterator iter;
     
     iter = parsed_options.find("bindable");
@@ -285,7 +286,9 @@ void t_as3_generator::close_generator() {}
  *
  * @param ttypedef The type definition
  */
-void t_as3_generator::generate_typedef(t_typedef* ttypedef) {}
+void t_as3_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
+}
 
 /**
  * Enums are a class with a set of static constants.
@@ -315,14 +318,8 @@ void t_as3_generator::generate_enum(t_enum* tenum) {
 
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     indent(f_enum) <<
       "public static const " << (*c_iter)->get_name() <<
       ":int = " << value << ";" << endl;
@@ -336,10 +333,8 @@ void t_as3_generator::generate_enum(t_enum* tenum) {
   bool firstValue = true;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
     // populate set
-    if ((*c_iter)->has_value()) {
-      f_enum << (firstValue ? "" : ", ") << (*c_iter)->get_name();
-      firstValue = false;
-    }
+    f_enum << (firstValue ? "" : ", ") << (*c_iter)->get_name();
+    firstValue = false;
   }
   indent_down();
   f_enum << ");" << endl;
@@ -506,6 +501,7 @@ void t_as3_generator::print_const_value(std::ofstream& out, string name, t_type*
 }
 
 string t_as3_generator::render_const_value(ofstream& out, string name, t_type* type, t_const_value* value) {
+  (void) name;
   type = get_true_type(type);
   std::ostringstream render;
   
@@ -975,6 +971,8 @@ void t_as3_generator::generate_as3_struct_result_writer(ofstream& out,
 }
 
 void t_as3_generator::generate_reflection_getters(ostringstream& out, t_type* type, string field_name, string cap_name) {
+  (void) type;
+  (void) cap_name;
   indent(out) << "case " << upcase_string(field_name) << ":" << endl;
   indent_up();
   indent(out) << "return this." << field_name << ";" << endl;
@@ -982,6 +980,8 @@ void t_as3_generator::generate_reflection_getters(ostringstream& out, t_type* ty
 }
 
 void t_as3_generator::generate_reflection_setters(ostringstream& out, t_type* type, string field_name, string cap_name) {
+  (void) type;
+  (void) cap_name;
   indent(out) << "case " << upcase_string(field_name) << ":" << endl;
   indent_up();
   indent(out) << "if (value == null) {" << endl;
@@ -1055,7 +1055,7 @@ void t_as3_generator::generate_generic_isset_method(std::ofstream& out, t_struct
   vector<t_field*>::const_iterator f_iter;
 
   // create the isSet method
-  indent(out) << "// Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise" << endl;
+  indent(out) << "// Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise" << endl;
   indent(out) << "public function isSet(fieldID:int):Boolean {" << endl;
   indent_up();
   indent(out) << "switch (fieldID) {" << endl;
@@ -1141,7 +1141,7 @@ void t_as3_generator::generate_as3_bean_boilerplate(ofstream& out,
     indent(out) << "}" << endl << endl;
     
     // isSet method
-    indent(out) << "// Returns true if field " << field_name << " is set (has been asigned a value) and false otherwise" << endl;
+    indent(out) << "// Returns true if field " << field_name << " is set (has been assigned a value) and false otherwise" << endl;
     indent(out) << "public function is" << get_cap_name("set") << cap_name << "():Boolean {" << endl;
     indent_up();
     if (type_can_be_null(type)) {
@@ -1780,6 +1780,7 @@ void t_as3_generator::generate_function_helpers(t_function* tfunction) {
  */
 void t_as3_generator::generate_process_function(t_service* tservice,
                                                  t_function* tfunction) {
+  (void) tservice;
   // Open class
   indent(f_service_) <<
   "private function " << tfunction->get_name() << "():Function {" << endl;
@@ -2202,6 +2203,7 @@ void t_as3_generator::generate_serialize_field(ofstream& out,
 void t_as3_generator::generate_serialize_struct(ofstream& out,
                                                  t_struct* tstruct,
                                                  string prefix) {
+  (void) tstruct;
   out <<
     indent() << prefix << ".write(oprot);" << endl;
 }
@@ -2321,6 +2323,7 @@ void t_as3_generator::generate_serialize_list_element(ofstream& out,
  * @return As3 type name, i.e. HashMap<Key,Value>
  */
 string t_as3_generator::type_name(t_type* ttype, bool in_container, bool in_init) {
+  (void) in_init;
   // In As3 typedefs are just resolved to their real type
   ttype = get_true_type(ttype);
   string prefix;
@@ -2357,6 +2360,7 @@ string t_as3_generator::type_name(t_type* ttype, bool in_container, bool in_init
  */
 string t_as3_generator::base_type_name(t_base_type* type,
                                         bool in_container) {
+  (void) in_container;
   t_base_type::t_base tbase = type->get_base();
 
   switch (tbase) {
@@ -2603,4 +2607,5 @@ std::string t_as3_generator::get_enum_class_name(t_type* type) {
 
 THRIFT_REGISTER_GENERATOR(as3, "AS3",
 "    bindable:          Add [bindable] metadata to all the struct classes.\n"
-);
+)
+

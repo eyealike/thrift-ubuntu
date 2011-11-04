@@ -160,25 +160,43 @@ class t_program : public t_doc {
 
   // Language neutral namespace / packaging
   void set_namespace(std::string language, std::string name_space) {
-    t_generator_registry::gen_map_t my_copy = t_generator_registry::get_generator_map();
+    if (language != "*") {
+      size_t sub_index = language.find('.');
+      std::string base_language = language.substr(0, sub_index);
+      std::string sub_namespace;
 
-    t_generator_registry::gen_map_t::iterator it;
-    it=my_copy.find(language);
+      if(base_language == "smalltalk") {
+        pwarning(1, "Namespace 'smalltalk' is deprecated. Use 'st' instead");
+        base_language = "st";
+      }
 
-    if (it == my_copy.end()) {
-      if (language != "smalltalk.prefix" && language != "smalltalk.package") {
-        throw "No generator named '" + language + "' could be found!";
+      t_generator_registry::gen_map_t my_copy = t_generator_registry::get_generator_map();
+
+      t_generator_registry::gen_map_t::iterator it;
+      it=my_copy.find(base_language);
+
+      if (it == my_copy.end()) {
+        throw "No generator named '" + base_language + "' could be found!";
+      }
+
+      if (sub_index != std::string::npos) {
+        std::string sub_namespace = language.substr(sub_index+1);
+        if(! it->second->is_valid_namespace(sub_namespace)) {
+          throw base_language +" generator does not accept '" + sub_namespace + "' as sub-namespace!";
+        }
       }
     }
+
     namespaces_[language] = name_space;
   }
 
   std::string get_namespace(std::string language) const {
-    std::map<std::string, std::string>::const_iterator iter = namespaces_.find(language);
-    if (iter == namespaces_.end()) {
-      return std::string();
+    std::map<std::string, std::string>::const_iterator iter;
+    if ((iter = namespaces_.find(language)) != namespaces_.end() ||
+        (iter = namespaces_.find("*"     )) != namespaces_.end()) {
+      return iter->second;
     }
-    return iter->second;
+    return std::string();
   }
 
   // Language specific namespace / packaging
@@ -189,6 +207,14 @@ class t_program : public t_doc {
 
   const std::vector<std::string>& get_cpp_includes() {
     return cpp_includes_;
+  }
+
+  void add_c_include(std::string path) {
+    c_includes_.push_back(path);
+  }
+
+  const std::vector<std::string>& get_c_includes() {
+    return c_includes_;
   }
 
  private:
@@ -228,6 +254,9 @@ class t_program : public t_doc {
 
   // C++ extra includes
   std::vector<std::string> cpp_includes_;
+
+  // C extra includes
+  std::vector<std::string> c_includes_;
 
 };
 

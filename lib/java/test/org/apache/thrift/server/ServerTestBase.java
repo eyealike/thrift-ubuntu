@@ -34,7 +34,6 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TCompactProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
-import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
@@ -275,8 +274,9 @@ public abstract class ServerTestBase extends TestCase {
       new TBinaryProtocol.Factory(),
       new TCompactProtocol.Factory());
 
-  protected static final String HOST = "localhost";
-  protected static final int PORT = 9090;
+  public static final String HOST = "localhost";
+  public static final int PORT = Integer.valueOf(
+    System.getProperty("test.port", "9090"));
   protected static final int SOCKET_TIMEOUT = 1000;
   private static final Xtruct XSTRUCT = new Xtruct("Zero", (byte) 1, -3, -5);
   private static final Xtruct2 XSTRUCT2 = new Xtruct2((byte)1, XSTRUCT, 5);
@@ -285,7 +285,7 @@ public abstract class ServerTestBase extends TestCase {
 
   public abstract void stopServer() throws Exception;
 
-  public abstract TTransport getTransport() throws Exception;
+  public abstract TTransport getClientTransport(TTransport underlyingTransport) throws Exception;
 
   private void testByte(ThriftTest.Client testClient) throws TException {
     byte i8 = testClient.testByte((byte)1);
@@ -367,23 +367,20 @@ public abstract class ServerTestBase extends TestCase {
 
   public void testIt() throws Exception {
 
-    for (TProtocolFactory protoFactory : PROTOCOLS) {
+    for (TProtocolFactory protoFactory : getProtocols()) {
       TestHandler handler = new TestHandler();
       ThriftTest.Processor processor = new ThriftTest.Processor(handler);
 
       startServer(processor, protoFactory);
 
-      TTransport transport;
-
       TSocket socket = new TSocket(HOST, PORT);
       socket.setTimeout(SOCKET_TIMEOUT);
-      transport = socket;
-      transport = new TFramedTransport(transport);
+      TTransport transport = getClientTransport(socket);
 
       TProtocol protocol = protoFactory.getProtocol(transport);
       ThriftTest.Client testClient = new ThriftTest.Client(protocol);
 
-      transport.open();
+      open(transport);
       testVoid(testClient);
       testString(testClient);
       testByte(testClient);
@@ -404,6 +401,14 @@ public abstract class ServerTestBase extends TestCase {
 
       stopServer();
     }
+  }
+
+  public void open(TTransport transport) throws Exception {
+    transport.open();
+  }
+
+  public List<TProtocolFactory> getProtocols() {
+    return PROTOCOLS;  
   }
 
   private void testList(ThriftTest.Client testClient) throws TException {

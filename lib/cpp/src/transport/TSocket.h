@@ -25,6 +25,7 @@
 #include <netdb.h>
 
 #include "TTransport.h"
+#include "TVirtualTransport.h"
 #include "TServerSocket.h"
 
 namespace apache { namespace thrift { namespace transport {
@@ -33,15 +34,7 @@ namespace apache { namespace thrift { namespace transport {
  * TCP Socket implementation of the TTransport interface.
  *
  */
-class TSocket : public TTransport {
-  /**
-   * We allow the TServerSocket acceptImpl() method to access the private
-   * members of a socket so that it can access the TSocket(int socket)
-   * constructor which creates a socket object from the raw UNIX socket
-   * handle.
-   */
-  friend class TServerSocket;
-
+class TSocket : public TVirtualTransport<TSocket> {
  public:
   /**
    * Constructs a new socket. Note that this does NOT actually connect the
@@ -58,6 +51,14 @@ class TSocket : public TTransport {
    * @param port The port to connect on
    */
   TSocket(std::string host, int port);
+
+  /**
+   * Constructs a new Unix domain socket.
+   * Note that this does NOT actually connect the socket.
+   *
+   * @param path The Unix domain socket e.g. "/tmp/ThriftTest.binary.thrift"
+   */
+  TSocket(std::string path);
 
   /**
    * Destroyes the socket object, closing it if necessary.
@@ -94,9 +95,14 @@ class TSocket : public TTransport {
   uint32_t read(uint8_t* buf, uint32_t len);
 
   /**
-   * Writes to the underlying socket.
+   * Writes to the underlying socket.  Loops until done or fail.
    */
   void write(const uint8_t* buf, uint32_t len);
+
+  /**
+   * Writes to the underlying socket.  Does single send() and returns result.
+   */
+  uint32_t write_partial(const uint8_t* buf, uint32_t len);
 
   /**
    * Get the host that the socket is connected to
@@ -184,6 +190,27 @@ class TSocket : public TTransport {
   int getPeerPort();
 
   /**
+   * Returns the underlying socket file descriptor.
+   */
+  int getSocketFD() {
+    return socket_;
+  }
+
+  /**
+   * (Re-)initialize a TSocket for the supplied descriptor.  This is only
+   * intended for use by TNonblockingServer -- other use may result in
+   * unfortunate surprises.
+   *
+   * @param fd the descriptor for an already-connected socket
+   */
+  void setSocketFD(int fd);
+
+  /*
+   * Returns a cached copy of the peer address.
+   */
+  sockaddr* getCachedAddress(socklen_t* len) const;
+
+  /**
    * Sets whether to use a low minimum TCP retransmission timeout.
    */
   static void setUseLowMinRto(bool useLowMinRto);
@@ -193,13 +220,18 @@ class TSocket : public TTransport {
    */
   static bool getUseLowMinRto();
 
- protected:
   /**
-   * Constructor to create socket from raw UNIX handle. Never called directly
-   * but used by the TServerSocket class.
+   * Constructor to create socket from raw UNIX handle.
    */
   TSocket(int socket);
 
+  /**
+   * Set a cache of the peer address (used when trivially available: e.g.
+   * accept() or connect()). Only caches IPV4 and IPV6; unset for others.
+   */
+  void setCachedAddress(const sockaddr* addr, socklen_t len);
+
+ protected:
   /** connect, called by open */
   void openConnection(struct addrinfo *res);
 
@@ -217,6 +249,9 @@ class TSocket : public TTransport {
 
   /** Port number to connect on */
   int port_;
+
+  /** UNIX domain socket path */
+  std::string path_;
 
   /** Underlying UNIX socket handle */
   int socket_;
@@ -245,8 +280,21 @@ class TSocket : public TTransport {
   /** Recv timeout timeval */
   struct timeval recvTimeval_;
 
+  /** Cached peer address */
+  union {
+    sockaddr_in ipv4;
+    sockaddr_in6 ipv6;
+  } cachedPeerAddr_;
+
+  /** Connection start time */
+  timespec startTime_;
+
   /** Whether to use low minimum TCP retransmission timeout */
   static bool useLowMinRto_;
+
+ private:
+  void unix_open();
+  void local_open();
 };
 
 }}} // apache::thrift::transport

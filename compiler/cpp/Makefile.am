@@ -26,11 +26,11 @@ BUILT_SOURCES =
 
 bin_PROGRAMS = thrift
 
+noinst_LIBRARIES = libparse.a
+
 thrift_OBJDIR = obj
 
-thrift_SOURCES = src/thrifty.yy \
-                 src/thriftl.ll \
-                 src/main.cc \
+thrift_SOURCES = src/main.cc \
                  src/md5.c \
                  src/generate/t_generator.cc \
                  src/generate/t_generator_registry.h \
@@ -56,9 +56,13 @@ thrift_SOURCES = src/thrifty.yy \
                  src/parse/t_scope.h \
                  src/parse/t_const.h \
                  src/parse/t_const_value.h \
+                 src/parse/parse.cc \
                  src/generate/t_generator.h \
                  src/generate/t_oop_generator.h
 
+if THRIFT_GEN_c_glib
+thrift_SOURCES += src/generate/t_c_glib_generator.cc
+endif
 if THRIFT_GEN_cpp
 thrift_SOURCES += src/generate/t_cpp_generator.cc
 endif
@@ -107,11 +111,19 @@ endif
 if THRIFT_GEN_js
 thrift_SOURCES += src/generate/t_js_generator.cc
 endif
+if THRIFT_GEN_javame
+thrift_SOURCES += src/generate/t_javame_generator.cc
+endif
 
-thrift_CXXFLAGS = -Wall -I$(srcdir)/src $(BOOST_CPPFLAGS)
-thrift_LDFLAGS = -Wall $(BOOST_LDFLAGS)
+thrift_CPPFLAGS = -I$(srcdir)/src
+thrift_CXXFLAGS = -Wall
+thrift_LDADD = @LEXLIB@ libparse.a
 
-thrift_LDADD = @LEXLIB@
+libparse_a_CPPFLAGS = -I$(srcdir)/src
+libparse_a_CXXFLAGS = -Wall -Wno-sign-compare -Wno-unused
+
+libparse_a_SOURCES = src/thrifty.yy \
+                     src/thriftl.ll
 
 EXTRA_DIST = README
 

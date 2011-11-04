@@ -21,6 +21,7 @@
 #define _THRIFT_THRIFT_H_ 1
 
 #include <stdio.h>
+#include <assert.h>
 
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -33,10 +34,39 @@
 #include <set>
 #include <vector>
 #include <exception>
+#include <typeinfo>
 
 #include "TLogging.h"
 
 namespace apache { namespace thrift {
+
+class TEnumIterator {
+ public:
+  TEnumIterator(int n,
+                int* enums,
+                const char** names) :
+      ii_(0), n_(n), enums_(enums), names_(names) {
+  }
+
+  int operator ++() {
+    return ++ii_;
+  }
+
+  bool operator !=(const TEnumIterator& end) {
+    assert(end.n_ == -1);
+    return (ii_ != n_);
+  }
+
+  std::pair<int, const char*> operator*() const {
+    return std::make_pair(enums_[ii_], names_[ii_]);
+  }
+
+ private:
+  int ii_;
+  const int n_;
+  int* enums_;
+  const char** names_;
+};
 
 class TOutput {
  public:
@@ -81,7 +111,8 @@ extern TOutput GlobalOutput;
 
 class TException : public std::exception {
  public:
-  TException() {}
+  TException():
+    message_() {}
 
   TException(const std::string& message) :
     message_(message) {}
@@ -107,6 +138,38 @@ namespace reflection { namespace local {
 struct TypeSpec;
 }}
 
+class TDelayedException {
+ public:
+  template <class E> static TDelayedException* delayException(const E& e);
+  virtual void throw_it() = 0;
+  virtual ~TDelayedException() {};
+};
+
+template <class E> class TExceptionWrapper : public TDelayedException {
+ public:
+  TExceptionWrapper(const E& e) : e_(e) {}
+  virtual void throw_it() {
+    E temp(e_);
+    delete this;
+    throw temp;
+  }
+ private:
+  E e_;
+};
+
+template <class E>
+TDelayedException* TDelayedException::delayException(const E& e) {
+  return new TExceptionWrapper<E>(e);
+}
+
+#if T_GLOBAL_DEBUG_VIRTUAL > 1
+void profile_virtual_call(const std::type_info& info);
+void profile_generic_protocol(const std::type_info& template_type,
+                              const std::type_info& prot_type);
+void profile_print_info(FILE *f);
+void profile_print_info();
+void profile_write_pprof(FILE* gen_calls_f, FILE* virtual_calls_f);
+#endif
 
 }} // apache::thrift
 

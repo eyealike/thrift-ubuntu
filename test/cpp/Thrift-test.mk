@@ -56,22 +56,22 @@ all: server client
 debug: server-debug client-debug
 
 stubs: ../ThriftTest.thrift
-	$(THRIFT) --gen cpp ../ThriftTest.thrift
+	$(THRIFT) --gen cpp:templates ../ThriftTest.thrift
 
 server-debug: stubs
-	g++ -o TestServer $(DCFL) src/TestServer.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp ../ThriftTest_extras.cpp
+	g++ -o TestServer $(DCFL) src/TestServer.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp $(thrift_home)/lib/cpp/test/ThriftTest_extras.cpp
 
 client-debug: stubs
-	g++ -o TestClient $(DCFL) src/TestClient.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp ../ThriftTest_extras.cpp
+	g++ -o TestClient $(DCFL) src/TestClient.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp $(thrift_home)/lib/cpp/test/ThriftTest_extras.cpp
 
 server: stubs
-	g++ -o TestServer $(CFL) src/TestServer.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp ../ThriftTest_extras.cpp
+	g++ -o TestServer $(CFL) src/TestServer.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp $(thrift_home)/lib/cpp/test/ThriftTest_extras.cpp
 
 client: stubs
-	g++ -o TestClient $(CFL) src/TestClient.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp ../ThriftTest_extras.cpp
+	g++ -o TestClient $(CFL) src/TestClient.cpp ./gen-cpp/ThriftTest.cpp ./gen-cpp/ThriftTest_types.cpp $(thrift_home)/lib/cpp/test/ThriftTest_extras.cpp
 
 small:
-	$(THRIFT) --gen cpp ../SmallTest.thrift
+	$(THRIFT) --gen cpp:templates ../SmallTest.thrift
 	g++ -c $(CCFL) ./gen-cpp/SmallService.cpp ./gen-cpp/SmallTest_types.cpp
 
 clean:

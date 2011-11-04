@@ -72,7 +72,7 @@ class ThreadManager::Impl : public ThreadManager  {
 
   void join() { stopImpl(true); }
 
-  const ThreadManager::STATE state() const {
+  ThreadManager::STATE state() const {
     return state_;
   }
 
@@ -343,7 +343,6 @@ class ThreadManager::Worker: public Runnable {
   void ThreadManager::Impl::addWorker(size_t value) {
   std::set<shared_ptr<Thread> > newThreads;
   for (size_t ix = 0; ix < value; ix++) {
-    class ThreadManager::Worker;
     shared_ptr<ThreadManager::Worker> worker = shared_ptr<ThreadManager::Worker>(new ThreadManager::Worker(this));
     newThreads.insert(threadFactory_->newThread(worker));
   }
@@ -497,6 +496,7 @@ void ThreadManager::Impl::removeWorker(size_t value) {
   }
 
 void ThreadManager::Impl::remove(shared_ptr<Runnable> task) {
+  (void) task;
   Synchronized s(monitor_);
   if (state_ != ThreadManager::STARTED) {
     throw IllegalStateException();

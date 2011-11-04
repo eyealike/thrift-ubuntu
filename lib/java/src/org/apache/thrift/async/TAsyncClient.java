@@ -25,17 +25,35 @@ public abstract class TAsyncClient {
   protected final TProtocolFactory protocolFactory;
   protected final TNonblockingTransport transport;
   protected final TAsyncClientManager manager;
-  private TAsyncMethodCall currentMethod;
-  private Throwable error;
+  protected TAsyncMethodCall currentMethod;
+  private Exception error;
+  private long timeout;
 
   public TAsyncClient(TProtocolFactory protocolFactory, TAsyncClientManager manager, TNonblockingTransport transport) {
+    this(protocolFactory, manager, transport, 0);
+  }
+
+  public TAsyncClient(TProtocolFactory protocolFactory, TAsyncClientManager manager, TNonblockingTransport transport, long timeout) {
     this.protocolFactory = protocolFactory;
     this.manager = manager;
     this.transport = transport;
+    this.timeout = timeout;
   }
 
   public TProtocolFactory getProtocolFactory() {
     return protocolFactory;
+  }
+
+  public long getTimeout() {
+    return timeout;
+  }
+
+  public boolean hasTimeout() {
+    return timeout > 0;
+  }
+
+  public void setTimeout(long timeout) {
+    this.timeout = timeout;
   }
 
   /**
@@ -50,7 +68,7 @@ public abstract class TAsyncClient {
    * Get the client's error - returns null if no error
    * @return
    */
-  public Throwable getError() {
+  public Exception getError() {
     return error;
   }
 
@@ -76,9 +94,9 @@ public abstract class TAsyncClient {
   /**
    * Called by delegate method on error
    */
-  protected void onError(Throwable throwable) {
+  protected void onError(Exception exception) {
     transport.close();
     currentMethod = null;
-    error = throwable;
+    error = exception;
   }
 }

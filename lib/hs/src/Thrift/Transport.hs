@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 --
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements. See the NOTICE file
@@ -28,7 +29,7 @@ import Control.Exception ( Exception, throw )
 
 import Data.Typeable ( Typeable )
 
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.ByteString.Lazy as LBS
 import Data.Monoid
 
 class Transport a where
@@ -39,7 +40,7 @@ class Transport a where
     tFlush  :: a -> IO ()
     tReadAll :: a -> Int -> IO LBS.ByteString
 
-    tReadAll a 0 = return mempty
+    tReadAll _ 0 = return mempty
     tReadAll a len = do
         result <- tRead a len
         let rlen = fromIntegral $ LBS.length result

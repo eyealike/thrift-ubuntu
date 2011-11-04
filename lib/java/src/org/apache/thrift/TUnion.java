@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.nio.ByteBuffer;
 
 import org.apache.thrift.protocol.TField;
 import org.apache.thrift.protocol.TProtocol;
@@ -54,11 +55,8 @@ public abstract class TUnion<T extends TUnion, F extends TFieldIdEnum> implement
   private static Object deepCopyObject(Object o) {
     if (o instanceof TBase) {
       return ((TBase)o).deepCopy();
-    } else if (o instanceof byte[]) {
-      byte[] other_val = (byte[])o;
-      byte[] this_val = new byte[other_val.length];
-      System.arraycopy(other_val, 0, this_val, 0, other_val.length);
-      return this_val;
+    } else if (o instanceof ByteBuffer) {
+      return TBaseHelper.copyBinary((ByteBuffer)o);
     } else if (o instanceof List) {
       return deepCopyList((List)o);
     } else if (o instanceof Set) {
@@ -106,7 +104,7 @@ public abstract class TUnion<T extends TUnion, F extends TFieldIdEnum> implement
     if (fieldId != setField_) {
       throw new IllegalArgumentException("Cannot get the value of field " + fieldId + " because union's set field is " + setField_);
     }
-    
+
     return getFieldValue();
   }
 
@@ -117,7 +115,7 @@ public abstract class TUnion<T extends TUnion, F extends TFieldIdEnum> implement
   public boolean isSet() {
     return setField_ != null;
   }
-  
+
   public boolean isSet(F fieldId) {
     return setField_ == fieldId;
   }
@@ -195,39 +193,25 @@ public abstract class TUnion<T extends TUnion, F extends TFieldIdEnum> implement
 
   @Override
   public String toString() {
-    String result = "<" + this.getClass().getSimpleName() + " ";
+    StringBuilder sb = new StringBuilder();
+    sb.append("<");
+    sb.append(this.getClass().getSimpleName());
+    sb.append(" ");
 
     if (getSetField() != null) {
       Object v = getFieldValue();
-      String vStr = null;
-      if (v instanceof byte[]) {
-        vStr = bytesToStr((byte[])v);
+      sb.append(getFieldDesc(getSetField()).name);
+      sb.append(":");
+      if(v instanceof ByteBuffer) {
+        TBaseHelper.toString((ByteBuffer)v, sb);
       } else {
-        vStr = v.toString();
+        sb.append(v.toString());
       }
-      result += getFieldDesc(getSetField()).name + ":" + vStr;
     }
-
-    return result + ">";
-  }
-
-  private static String bytesToStr(byte[] bytes) {
-    StringBuilder sb = new StringBuilder();
-    int size = Math.min(bytes.length, 128);
-    for (int i = 0; i < size; i++) {
-      if (i != 0) {
-        sb.append(" ");
-      }
-      String digit = Integer.toHexString(bytes[i] & 0xFF);
-      sb.append(digit.length() > 1 ? digit : "0" + digit);
-    }
-    if (bytes.length > 128) {
-      sb.append(" ...");
-    }
+    sb.append(">");
     return sb.toString();
   }
 
-  @Override
   public final void clear() {
     this.setField_ = null;
     this.value_ = null;

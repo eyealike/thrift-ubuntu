@@ -27,7 +27,7 @@
 #include <vector>
 
 #include <stdlib.h>
-#include <boost/tokenizer.hpp>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sstream>
@@ -49,6 +49,8 @@ class t_st_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) parsed_options;
+    (void) option_string;
     out_dir_base_ = "gen-st";
   }
 
@@ -121,6 +123,7 @@ class t_st_generator : public t_oop_generator {
   void st_accessors(std::ofstream &out, std::string cls, std::string name, std::string type);
 
   std::string class_name();
+  static bool is_valid_namespace(const std::string& sub_namespace);
   std::string client_class_name();
   std::string prefix(std::string name);
   std::string declare_field(t_field* tfield);
@@ -181,6 +184,10 @@ string t_st_generator::class_name() {
   return capitalize(program_name_);
 }
 
+bool t_st_generator::is_valid_namespace(const std::string& sub_namespace) {
+  return sub_namespace == "prefix" || sub_namespace == "category";
+}
+
 string t_st_generator::prefix(string class_name) {
   string prefix = program_->get_namespace("smalltalk.prefix");
   string name = capitalize(class_name);
@@ -235,7 +242,9 @@ string t_st_generator::generated_category() {
  *
  * @param ttypedef The type definition
  */
-void t_st_generator::generate_typedef(t_typedef* ttypedef) {}
+void t_st_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
+}
 
 void t_st_generator::st_class_def(std::ofstream &out, string name) {
   out << "Object subclass: #" << prefix(name) << endl;
@@ -324,14 +333,8 @@ void t_st_generator::generate_enum(t_enum* tenum) {
 
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     f_ << "\tat: '" << (*c_iter)->get_name() << "' put: " << value << ";" << endl;
   }
 
@@ -1052,4 +1055,5 @@ string t_st_generator::type_to_enum(t_type* type) {
 }
 
 
-THRIFT_REGISTER_GENERATOR(st, "Smalltalk", "");
+THRIFT_REGISTER_GENERATOR(st, "Smalltalk", "")
+

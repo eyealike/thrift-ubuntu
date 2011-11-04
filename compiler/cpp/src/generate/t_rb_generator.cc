@@ -25,13 +25,12 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sstream>
-
-#include <boost/tokenizer.hpp>
 
 #include "t_oop_generator.h"
 #include "platform.h"
@@ -50,6 +49,8 @@ class t_rb_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) parsed_options;
+    (void) option_string;
     out_dir_base_ = "gen-rb";
   }
 
@@ -174,11 +175,20 @@ class t_rb_generator : public t_oop_generator {
 
   std::vector<std::string> ruby_modules(t_program* p) {
     std::string ns = p->get_namespace("rb");
-    boost::tokenizer<> tok(ns);
     std::vector<std::string> modules;
+    if (ns.empty()) {
+      return modules;
+    }
 
-    for(boost::tokenizer<>::iterator beg=tok.begin(); beg != tok.end(); ++beg) {
-      modules.push_back(capitalize(*beg));
+    std::string::iterator pos = ns.begin();
+    while (true) {
+      std::string::iterator delim = std::find(pos, ns.end(), '.');
+      modules.push_back(capitalize(std::string(pos, delim)));
+      pos = delim;
+      if (pos == ns.end()) {
+        break;
+      }
+      ++pos;
     }
 
     return modules;
@@ -274,7 +284,9 @@ void t_rb_generator::close_generator() {
  *
  * @param ttypedef The type definition
  */
-void t_rb_generator::generate_typedef(t_typedef* ttypedef) {}
+void t_rb_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
+}
 
 /**
  * Generates code for an enumerated type. Done using a class to scope
@@ -289,13 +301,8 @@ void t_rb_generator::generate_enum(t_enum* tenum) {
 
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
+    int value = (*c_iter)->get_value();
 
     // Ruby class constants have to be capitalized... omg i am so on the fence
     // about languages strictly enforcing capitalization why can't we just all
@@ -303,24 +310,17 @@ void t_rb_generator::generate_enum(t_enum* tenum) {
     string name = capitalize((*c_iter)->get_name());
 
     generate_rdoc(f_types_, *c_iter);
-    f_types_ <<
-      indent() << name << " = " << value << endl;
+    indent(f_types_) << name << " = " << value << endl;
   }
   
-  //Create a hash mapping values back to their names (as strings) since ruby has no native enum type
+  // Create a hash mapping values back to their names (as strings) since ruby has no native enum type
   indent(f_types_) << "VALUE_MAP = {";
   bool first = true;
-  value = -1;
   for(c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    //Populate the hash
-    //If no value is given, use the next available one
-    if ((*c_iter)->has_value())
-      value = (*c_iter)->get_value();
-    else ++value;
-    
+    // Populate the hash
+    int value = (*c_iter)->get_value();
     first ? first = false : f_types_ << ", ";
     f_types_ << value << " => \"" << capitalize((*c_iter)->get_name()) << "\"";
-    
   }
   f_types_ << "}" << endl;
   
@@ -329,7 +329,7 @@ void t_rb_generator::generate_enum(t_enum* tenum) {
   first = true;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
     // Populate the set
-    first ? first = false: f_types_ << ", ";
+    first ? first = false : f_types_ << ", ";
     f_types_ << capitalize((*c_iter)->get_name());
   }
   f_types_ << "]).freeze" << endl;
@@ -515,6 +515,7 @@ void t_rb_generator::generate_rb_struct(std::ofstream& out, t_struct* tstruct, b
  * Generates a ruby union
  */
 void t_rb_generator::generate_rb_union(std::ofstream& out, t_struct* tstruct, bool is_exception = false) {
+  (void) is_exception;
   generate_rdoc(out, tstruct);
   indent(out) << "class " << type_name(tstruct) << " < ::Thrift::Union" << endl;
 
@@ -937,6 +938,7 @@ void t_rb_generator::generate_service_server(t_service* tservice) {
  */
 void t_rb_generator::generate_process_function(t_service* tservice,
                                                t_function* tfunction) {
+  (void) tservice;
   // Open function
   indent(f_service_) <<
     "def process_" << tfunction->get_name() <<
@@ -1187,4 +1189,5 @@ void t_rb_generator::generate_rb_union_validator(std::ofstream& out,
   indent(out) << "end" << endl << endl;
 }
 
-THRIFT_REGISTER_GENERATOR(rb, "Ruby", "");
+THRIFT_REGISTER_GENERATOR(rb, "Ruby", "")
+

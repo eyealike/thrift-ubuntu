@@ -119,6 +119,9 @@ void TFileTransport::resetOutputFile(int fd, string filename, int64_t offset) {
       int errno_copy = errno;
       GlobalOutput.perror("TFileTransport: resetOutputFile() ::close() ", errno_copy);
       throw TTransportException(TTransportException::UNKNOWN, "TFileTransport: error in file close", errno_copy);
+    } else {
+      //successfully closed fd
+      fd_ = 0;
     }
   }
 
@@ -134,19 +137,12 @@ void TFileTransport::resetOutputFile(int fd, string filename, int64_t offset) {
 TFileTransport::~TFileTransport() {
   // flush the buffer if a writer thread is active
   if (writerThreadId_ > 0) {
-    // reduce the flush timeout so that closing is quicker
-    setFlushMaxUs(300*1000);
-
-    // flush output buffer
-    flush();
-
     // set state to closing
     closing_ = true;
 
-    // TODO: make sure event queue is empty
-    // currently only the write buffer is flushed
-    // we dont actually wait until the queue is empty. This shouldn't be a big
-    // deal in the common case because writing is quick
+    // wake up the writer thread
+    // Since closing_ is true, it will attempt to flush all data, then exit.
+    pthread_cond_signal(&notEmpty_);
 
     pthread_join(writerThreadId_, NULL);
     writerThreadId_ = 0;
@@ -176,19 +172,22 @@ TFileTransport::~TFileTransport() {
   if (fd_ > 0) {
     if(-1 == ::close(fd_)) {
       GlobalOutput.perror("TFileTransport: ~TFileTransport() ::close() ", errno);
+    } else {
+      //successfully closed fd
+      fd_ = 0;
     }
   }
 }
 
 bool TFileTransport::initBufferAndWriteThread() {
   if (bufferAndThreadInitialized_) {
-    T_ERROR("Trying to double-init TFileTransport");
+    T_ERROR("%s", "Trying to double-init TFileTransport");
     return false;
   }
 
   if (writerThreadId_ == 0) {
     if (pthread_create(&writerThreadId_, NULL, startWriterThread, (void *)this) != 0) {
-      T_ERROR("Could not create writer thread");
+      T_ERROR("%s", "Could not create writer thread");
       return false;
     }
   }
@@ -205,10 +204,10 @@ void TFileTransport::write(const uint8_t* buf, uint32_t len) {
     throw TTransportException("TFileTransport: attempting to write to file opened readonly");
   }
 
-  enqueueEvent(buf, len, false);
+  enqueueEvent(buf, len);
 }
 
-void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen, bool blockUntilFlush) {
+void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen) {
   // can't enqueue more events if file is going to close
   if (closing_) {
     return;
@@ -221,12 +220,15 @@ void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen, bool bl
   }
 
   if (eventLen == 0) {
-    T_ERROR("cannot enqueue an empty event");
+    T_ERROR("%s", "cannot enqueue an empty event");
     return;
   }
 
   eventInfo* toEnqueue = new eventInfo();
   toEnqueue->eventBuff_ = (uint8_t *)std::malloc((sizeof(uint8_t) * eventLen) + 4);
+  if (toEnqueue->eventBuff_ == NULL) {
+    throw std::bad_alloc();
+  }
   // first 4 bytes is the event length
   memcpy(toEnqueue->eventBuff_, (void*)(&eventLen), 4);
   // actual event contents
@@ -250,6 +252,11 @@ void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen, bool bl
     pthread_cond_wait(&notFull_, &mutex_);
   }
 
+  // We shouldn't be trying to enqueue new data while a forced flush is
+  // requested.  (Otherwise the writer thread might not ever be able to finish
+  // the flush if more data keeps being enqueued.)
+  assert(!forceFlush_);
+
   // add to the buffer
   if (!enqueueBuffer_->addEvent(toEnqueue)) {
     delete toEnqueue;
@@ -260,10 +267,6 @@ void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen, bool bl
   // signal anybody who's waiting for the buffer to be non-empty
   pthread_cond_signal(&notEmpty_);
 
-  if (blockUntilFlush) {
-    pthread_cond_wait(&flushed_, &mutex_);
-  }
-
   // this really should be a loop where it makes sure it got flushed
   // because condition variables can get triggered by the os for no reason
   // it is probably a non-factor for the time being
@@ -272,33 +275,41 @@ void TFileTransport::enqueueEvent(const uint8_t* buf, uint32_t eventLen, bool bl
 
 bool TFileTransport::swapEventBuffers(struct timespec* deadline) {
   pthread_mutex_lock(&mutex_);
-  if (deadline != NULL) {
-    // if we were handed a deadline time struct, do a timed wait
-    pthread_cond_timedwait(&notEmpty_, &mutex_, deadline);
+
+  bool swap;
+  if (!enqueueBuffer_->isEmpty()) {
+    swap = true;
+  } else if (closing_) {
+    // even though there is no data to write,
+    // return immediately if the transport is closing
+    swap = false;
   } else {
-    // just wait until the buffer gets an item
-    pthread_cond_wait(&notEmpty_, &mutex_);
+    if (deadline != NULL) {
+      // if we were handed a deadline time struct, do a timed wait
+      pthread_cond_timedwait(&notEmpty_, &mutex_, deadline);
+    } else {
+      // just wait until the buffer gets an item
+      pthread_cond_wait(&notEmpty_, &mutex_);
+    }
+
+    // could be empty if we timed out
+    swap = enqueueBuffer_->isEmpty();
   }
 
-  bool swapped = false;
-
-  // could be empty if we timed out
-  if (!enqueueBuffer_->isEmpty()) {
+  if (swap) {
     TFileTransportBuffer *temp = enqueueBuffer_;
     enqueueBuffer_ = dequeueBuffer_;
     dequeueBuffer_ = temp;
-
-    swapped = true;
   }
 
   // unlock the mutex and signal if required
   pthread_mutex_unlock(&mutex_);
 
-  if (swapped) {
+  if (swap) {
     pthread_cond_signal(&notFull_);
   }
 
-  return swapped;
+  return swap;
 }
 
 
@@ -344,12 +355,15 @@ void TFileTransport::writerThread() {
         pthread_exit(NULL);
       }
 
-      // Try to empty buffers before exit 
+      // Try to empty buffers before exit
       if (enqueueBuffer_->isEmpty() && dequeueBuffer_->isEmpty()) {
         fsync(fd_);
         if (-1 == ::close(fd_)) {
           int errno_copy = errno;
           GlobalOutput.perror("TFileTransport: writerThread() ::close() ", errno_copy);
+        } else {
+          //fd successfully closed
+          fd_ = 0;
         }
         pthread_exit(NULL);
       }
@@ -407,8 +421,9 @@ void TFileTransport::writerThread() {
             offset_ = lseek(fd_, 0, SEEK_CUR);
             int32_t padding = (int32_t)((offset_ / chunkSize_ + 1) * chunkSize_ - offset_);
 
-            uint8_t zeros[padding];
-            bzero(zeros, padding);
+            uint8_t* zeros = new uint8_t[padding];
+            memset(zeros, '\0', padding);
+            boost::scoped_array<uint8_t> array(zeros);
             if (-1 == ::write(fd_, zeros, padding)) {
               int errno_copy = errno;
               GlobalOutput.perror("TFileTransport: writerThread() error while padding zeros ", errno_copy);
@@ -439,28 +454,67 @@ void TFileTransport::writerThread() {
       continue;
     }
 
-    bool flushTimeElapsed = false;
-    struct timespec current_time;
-    clock_gettime(CLOCK_REALTIME, &current_time);
+    // Local variable to cache the state of forceFlush_.
+    //
+    // We only want to check the value of forceFlush_ once each time around the
+    // loop.  If we check it more than once without holding the lock the entire
+    // time, it could have changed state in between.  This will result in us
+    // making inconsistent decisions.
+    bool forced_flush = false;
+    pthread_mutex_lock(&mutex_);
+    if (forceFlush_) {
+      if (!enqueueBuffer_->isEmpty()) {
+        // If forceFlush_ is true, we need to flush all available data.
+        // If enqueueBuffer_ is not empty, go back to the start of the loop to
+        // write it out.
+        //
+        // We know the main thread is waiting on forceFlush_ to be cleared,
+        // so no new events will be added to enqueueBuffer_ until we clear
+        // forceFlush_.  Therefore the next time around the loop enqueueBuffer_
+        // is guaranteed to be empty.  (I.e., we're guaranteed to make progress
+        // and clear forceFlush_ the next time around the loop.)
+        pthread_mutex_unlock(&mutex_);
+        continue;
+      }
+      forced_flush = true;
+    }
+    pthread_mutex_unlock(&mutex_);
 
-    if (current_time.tv_sec > ts_next_flush.tv_sec ||
-        (current_time.tv_sec == ts_next_flush.tv_sec && current_time.tv_nsec > ts_next_flush.tv_nsec)) {
-      flushTimeElapsed = true;
-      getNextFlushTime(&ts_next_flush);
+    // determine if we need to perform an fsync
+    bool flush = false;
+    if (forced_flush || unflushed > flushMaxBytes_) {
+      flush = true;
+    } else {
+      struct timespec current_time;
+      clock_gettime(CLOCK_REALTIME, &current_time);
+      if (current_time.tv_sec > ts_next_flush.tv_sec ||
+          (current_time.tv_sec == ts_next_flush.tv_sec &&
+           current_time.tv_nsec > ts_next_flush.tv_nsec)) {
+        if (unflushed > 0) {
+          flush = true;
+        } else {
+          // If there is no new data since the last fsync,
+          // don't perform the fsync, but do reset the timer.
+          getNextFlushTime(&ts_next_flush);
+        }
+      }
     }
 
-    // couple of cases from which a flush could be triggered
-    if ((flushTimeElapsed && unflushed > 0) ||
-       unflushed > flushMaxBytes_ ||
-       forceFlush_) {
-
+    if (flush) {
       // sync (force flush) file to disk
       fsync(fd_);
       unflushed = 0;
+      getNextFlushTime(&ts_next_flush);
 
       // notify anybody waiting for flush completion
-      forceFlush_ = false;
-      pthread_cond_broadcast(&flushed_);
+      if (forced_flush) {
+        pthread_mutex_lock(&mutex_);
+        forceFlush_ = false;
+        assert(enqueueBuffer_->isEmpty());
+        assert(dequeueBuffer_->isEmpty());
+        pthread_cond_broadcast(&flushed_);
+        pthread_mutex_unlock(&mutex_);
+      }
     }
   }
 }
@@ -473,7 +527,10 @@ void TFileTransport::flush() {
   // wait for flush to take place
   pthread_mutex_lock(&mutex_);
 
+  // Indicate that we are requesting a flush
   forceFlush_ = true;
+  // Wake up the writer thread so it will perform the flush immediately
+  pthread_cond_signal(&notEmpty_);
 
   while (forceFlush_) {
     pthread_cond_wait(&flushed_, &mutex_);
@@ -684,8 +741,10 @@ bool TFileTransport::isEventCorrupted() {
   } else if( ((offset_ + readState_.bufferPtr_ - 4)/chunkSize_) !=
              ((offset_ + readState_.bufferPtr_ + readState_.event_->eventSize_ - 1)/chunkSize_) ) {
     // 3. size indicates that event crosses chunk boundary
-    T_ERROR("Read corrupt event. Event crosses chunk boundary. Event size:%u  Offset:%ld",
-            readState_.event_->eventSize_, offset_ + readState_.bufferPtr_ + 4);
+    T_ERROR("Read corrupt event. Event crosses chunk boundary. Event size:%u  Offset:%lld",
+            readState_.event_->eventSize_,
+            (int64_t) (offset_ + readState_.bufferPtr_ + 4));
+
     return true;
   }
 
@@ -724,8 +783,9 @@ void TFileTransport::performRecovery() {
       readState_.resetState(readState_.lastDispatchPtr_);
       currentEvent_ = NULL;
       char errorMsg[1024];
-      sprintf(errorMsg, "TFileTransport: log file corrupted at offset: %lu",
-              offset_ + readState_.lastDispatchPtr_);
+      sprintf(errorMsg, "TFileTransport: log file corrupted at offset: %lld",
+              (int64_t) (offset_ + readState_.lastDispatchPtr_));
+              
       GlobalOutput(errorMsg);
       throw TTransportException(errorMsg);
     }
@@ -752,15 +812,15 @@ void TFileTransport::seekToChunk(int32_t chunk) {
 
   // too large a value for reverse seek, just seek to beginning
   if (chunk < 0) {
-    T_DEBUG("Incorrect value for reverse seek. Seeking to beginning...", chunk)
+    T_DEBUG("%s", "Incorrect value for reverse seek. Seeking to beginning...");
     chunk = 0;
   }
 
   // cannot seek past EOF
   bool seekToEnd = false;
-  uint32_t minEndOffset = 0;
+  off_t minEndOffset = 0;
   if (chunk >= numChunks) {
-    T_DEBUG("Trying to seek past EOF. Seeking to EOF instead...");
+    T_DEBUG("%s", "Trying to seek past EOF. Seeking to EOF instead...");
     seekToEnd = true;
     chunk = numChunks - 1;
     // this is the min offset to process events till
@@ -896,7 +956,7 @@ eventInfo* TFileTransportBuffer::getNext() {
 
 void TFileTransportBuffer::reset() {
   if (bufferMode_ == WRITE || writePoint_ > readPoint_) {
-    T_DEBUG("Resetting a buffer with unread entries");
+    T_DEBUG("%s", "Resetting a buffer with unread entries");
   }
   // Clean up the old entries
   for (uint32_t i = 0; i < writePoint_; i++) {
@@ -948,7 +1008,7 @@ TFileProcessor::TFileProcessor(shared_ptr<TProcessor> processor,
   inputProtocolFactory_(protocolFactory),
   outputProtocolFactory_(protocolFactory),
   inputTransport_(inputTransport),
-  outputTransport_(outputTransport) {};
+  outputTransport_(outputTransport) {}
 
 void TFileProcessor::process(uint32_t numEvents, bool tail) {
   shared_ptr<TProtocol> inputProtocol = inputProtocolFactory_->getProtocol(inputTransport_);
@@ -966,7 +1026,7 @@ void TFileProcessor::process(uint32_t numEvents, bool tail) {
     // bad form to use exceptions for flow control but there is really
     // no other way around it
     try {
-      processor_->process(inputProtocol, outputProtocol);
+      processor_->process(inputProtocol, outputProtocol, NULL);
       numProcessed++;
       if ( (numEvents > 0) && (numProcessed == numEvents)) {
         return;
@@ -998,7 +1058,7 @@ void TFileProcessor::processChunk() {
     // bad form to use exceptions for flow control but there is really
     // no other way around it
     try {
-      processor_->process(inputProtocol, outputProtocol);
+      processor_->process(inputProtocol, outputProtocol, NULL);
       if (curChunk != inputTransport_->getCurChunk()) {
         break;
       }

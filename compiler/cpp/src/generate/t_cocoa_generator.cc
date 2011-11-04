@@ -43,6 +43,7 @@ class t_cocoa_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) option_string;
     std::map<std::string, std::string>::const_iterator iter;
     
     iter = parsed_options.find("log_unexpected");
@@ -179,7 +180,6 @@ class t_cocoa_generator : public t_oop_generator {
   std::string base_type_name(t_base_type* tbase);
   std::string declare_field(t_field* tfield);
   std::string declare_property(t_field* tfield);
-  std::string dynamic_property(t_field* tfield);
   std::string function_signature(t_function* tfunction);
   std::string argument_list(t_struct* tstruct);
   std::string type_to_enum(t_type* ttype);
@@ -334,10 +334,8 @@ void t_cocoa_generator::generate_enum(t_enum* tenum) {
     }
     f_header_ <<
       indent() << tenum->get_name() << "_" << (*c_iter)->get_name();
-    if ((*c_iter)->has_value()) {
-      f_header_ <<
-        " = " << (*c_iter)->get_value();
-    }
+    f_header_ <<
+      " = " << (*c_iter)->get_value();
   }
 
   indent_down();
@@ -544,6 +542,7 @@ void t_cocoa_generator::generate_cocoa_struct_initializer_signature(ofstream &ou
 void t_cocoa_generator::generate_cocoa_struct_field_accessor_declarations(ofstream &out,
                                                                           t_struct* tstruct,
                                                                           bool is_exception) {
+  (void) is_exception;
   const vector<t_field*>& members = tstruct->get_members();
   vector<t_field*>::const_iterator m_iter;
   for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
@@ -716,15 +715,6 @@ void t_cocoa_generator::generate_cocoa_struct_implementation(ofstream &out,
 
   const vector<t_field*>& members = tstruct->get_members();
   vector<t_field*>::const_iterator m_iter;
-
-  // @dynamic property declarations
-  if (!members.empty()) {
-    out << "#if TARGET_OS_IPHONE || (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_5)" << endl;
-    for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
-      out << indent() << dynamic_property(*m_iter) << endl;
-    }
-    out << "#endif" << endl << endl;
-  }
 
   // initializer with all fields as params
   if (!members.empty()) {
@@ -1031,6 +1021,7 @@ void t_cocoa_generator::generate_cocoa_struct_result_writer(ofstream& out,
 void t_cocoa_generator::generate_cocoa_struct_field_accessor_implementations(ofstream& out,
                                                                              t_struct* tstruct,
                                                                              bool is_exception) {
+  (void) is_exception;
   const vector<t_field*>& fields = tstruct->get_members();
   vector<t_field*>::const_iterator f_iter;
   for (f_iter = fields.begin(); f_iter != fields.end(); ++f_iter) {
@@ -1159,7 +1150,11 @@ void t_cocoa_generator::generate_cocoa_service_helpers(t_service* tservice) {
 }
 
 string t_cocoa_generator::function_result_helper_struct_type(t_function* tfunction) {
-  return capitalize(tfunction->get_name()) + "_result";
+  if (tfunction->is_oneway()) {
+    return capitalize(tfunction->get_name());
+  } else {
+    return capitalize(tfunction->get_name()) + "_result";
+  }
 }
 
 
@@ -1551,6 +1546,9 @@ void t_cocoa_generator::generate_cocoa_service_server_implementation(ofstream& o
   // generate a process_XXXX method for each service function, which reads args, calls the service, and writes results
   functions = tservice->get_functions();
   for (f_iter = functions.begin(); f_iter != functions.end(); ++f_iter) {
+    if ((*f_iter)->is_oneway()) {
+        continue;
+    }
     out << endl;
     string funname = (*f_iter)->get_name();
     out << indent() << "- (void) process_" << funname << "_withSequenceID: (int32_t) seqID inProtocol: (id<TProtocol>) inProtocol outProtocol: (id<TProtocol>) outProtocol" << endl;
@@ -1959,6 +1957,7 @@ void t_cocoa_generator::generate_serialize_field(ofstream& out,
 void t_cocoa_generator::generate_serialize_struct(ofstream& out,
                                                   t_struct* tstruct,
                                                   string fieldName) {
+  (void) tstruct;
   out <<
     indent() << "[" << fieldName << " write: outProtocol];" << endl;
 }
@@ -2335,15 +2334,6 @@ string t_cocoa_generator::declare_property(t_field* tfield) {
 }
 
 /**
- * Add @dynamic declaration for an Objective-C 2.0 property.
- *
- * @param tfield The field for which to declare a dynamic property
- */
-string t_cocoa_generator::dynamic_property(t_field* tfield) {
-  return "@dynamic " + tfield->get_name() + ";";
-}
-
-/**
  * Renders a function signature
  *
  * @param tfunction Function definition
@@ -2476,4 +2466,5 @@ string t_cocoa_generator::call_field_setter(t_field* tfield, string fieldName) {
 
 THRIFT_REGISTER_GENERATOR(cocoa, "Cocoa",
 "    log_unexpected:  Log every time an unexpected field ID or type is encountered.\n"
-);
+)
+

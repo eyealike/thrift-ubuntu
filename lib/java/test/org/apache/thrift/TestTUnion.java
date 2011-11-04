@@ -18,6 +18,10 @@
  */
 package org.apache.thrift;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -182,5 +186,40 @@ public class TestTUnion extends TestCase {
     new TDeserializer().deserialize(tums, tuSerialized);
     assertNull(tums.getSetField());
     assertNull(tums.getFieldValue());
+  }
+
+  public void testDeepCopy() throws Exception {
+    byte[] bytes = {1, 2, 3};
+    ByteBuffer value = ByteBuffer.wrap(bytes);
+    ComparableUnion cu = ComparableUnion.binary_field(value);
+    ComparableUnion copy = cu.deepCopy();
+    assertEquals(cu, copy);
+    assertNotSame(cu.bufferForBinary_field().array(), copy.bufferForBinary_field().array());
+  }
+  
+  public void testToString() throws Exception {
+    byte[] bytes = {1, 2, 3};
+    ByteBuffer value = ByteBuffer.wrap(bytes);
+    ComparableUnion cu = ComparableUnion.binary_field(value);
+    String expectedString = "<ComparableUnion binary_field:01 02 03>";
+    assertEquals(expectedString, cu.toString());
+  }
+
+  public void testJavaSerializable() throws Exception {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    ObjectOutputStream oos = new ObjectOutputStream(baos);
+    
+    TestUnion tu = TestUnion.string_field("string");
+
+    // Serialize tu the Java way...
+    oos.writeObject(tu);
+    byte[] serialized = baos.toByteArray();
+
+    // Attempt to deserialize it
+    ByteArrayInputStream bais = new ByteArrayInputStream(serialized);
+    ObjectInputStream ois = new ObjectInputStream(bais);
+    TestUnion tu2 = (TestUnion) ois.readObject();
+
+    assertEquals(tu, tu2);
   }
 }

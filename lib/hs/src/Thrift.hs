@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
 --
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements. See the NOTICE file
@@ -56,6 +59,7 @@ instance Enum AppExnType where
     toEnum 3 = AE_WRONG_METHOD_NAME
     toEnum 4 = AE_BAD_SEQUENCE_ID
     toEnum 5 = AE_MISSING_RESULT
+    toEnum t = error $ "Invalid AppExnType " ++ show t
 
     fromEnum AE_UNKNOWN = 0
     fromEnum AE_UNKNOWN_METHOD = 1
@@ -78,34 +82,35 @@ writeAppExn pt ae = do
         writeFieldEnd pt
 
     writeFieldBegin pt ("type", T_I32, 2);
-    writeI32 pt (fromEnum (ae_type ae))
+    writeI32 pt (fromIntegral $ fromEnum (ae_type ae))
     writeFieldEnd pt
     writeFieldStop pt
     writeStructEnd pt
 
 readAppExn :: (Protocol p, Transport t) => p t -> IO AppExn
 readAppExn pt = do
-    readStructBegin pt
-    rec <- readAppExnFields pt (AppExn {ae_type = undefined, ae_message = undefined})
+    _ <- readStructBegin pt
+    record <- readAppExnFields pt (AppExn {ae_type = undefined, ae_message = undefined})
     readStructEnd pt
-    return rec
+    return record
 
-readAppExnFields pt rec = do
-    (n, ft, id) <- readFieldBegin pt
+readAppExnFields :: forall (a :: * -> *) t. (Protocol a, Transport t) => a t -> AppExn -> IO AppExn 
+readAppExnFields pt record = do
+    (_, ft, tag) <- readFieldBegin pt
     if ft == T_STOP
-        then return rec
-        else case id of
+        then return record
+        else case tag of
                  1 -> if ft == T_STRING then
                           do s <- readString pt
-                             readAppExnFields pt rec{ae_message = s}
+                             readAppExnFields pt record{ae_message = s}
                           else do skip pt ft
-                                  readAppExnFields pt rec
+                                  readAppExnFields pt record
                  2 -> if ft == T_I32 then
                           do i <- readI32 pt
-                             readAppExnFields pt rec{ae_type = (toEnum  i)}
+                             readAppExnFields pt record{ae_type = (toEnum $ fromIntegral i)}
                           else do skip pt ft
-                                  readAppExnFields pt rec
+                                  readAppExnFields pt record
                  _ -> do skip pt ft
                          readFieldEnd pt
-                         readAppExnFields pt rec
+                         readAppExnFields pt record
 

@@ -25,6 +25,17 @@
 
 %{
 
+/* This is redundant with some of the flags in Makefile.am, but it works
+ * when people override CXXFLAGS without being careful. The pragmas are
+ * the 'right' way to do it, but don't work on old-enough GCC (in particular
+ * the GCC that ship on Mac OS X 10.6.5, *counter* to what the GNU docs say)
+ *
+ * We should revert the Makefile.am changes once Apple ships a reasonable
+ * GCC.
+ */
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-label"
+
 #include <string>
 #include <errno.h>
 
@@ -54,6 +65,16 @@ void integer_overflow(char* text) {
  * Provides the yylineno global, useful for debugging output
  */
 %option lex-compat
+
+/**
+ * Our inputs are all single files, so no need for yywrap
+ */
+%option noyywrap
+
+/**
+ * We don't use it, and it fires up warnings at -Wall
+ */
+%option nounput
 
 /**
  * Helper definitions, comments, constants, and whatnot
@@ -336,6 +357,11 @@ literal_begin (['\"])
   }
 }
 
+
+. {
+  /* Catch-all to let us catch "*" in the parser. */
+  return (int) yytext[0];
+}
 
 %%
 

@@ -17,7 +17,7 @@
 # under the License.
 #
 
-ACLOCAL_AMFLAGS = -I ./aclocal
+SUBDIRS = . test
 
 pkgconfigdir = $(libdir)/pkgconfig
 
@@ -48,8 +48,6 @@ libthrift_la_SOURCES = src/Thrift.cpp \
                        src/concurrency/ThreadManager.cpp \
                        src/concurrency/TimerManager.cpp \
                        src/concurrency/Util.cpp \
-                       src/protocol/TBinaryProtocol.cpp \
-                       src/protocol/TCompactProtocol.cpp \
                        src/protocol/TDebugProtocol.cpp \
                        src/protocol/TDenseProtocol.cpp \
                        src/protocol/TJSONProtocol.cpp \
@@ -70,9 +68,11 @@ libthrift_la_SOURCES = src/Thrift.cpp \
                        src/server/TSimpleServer.cpp \
                        src/server/TThreadPoolServer.cpp \
                        src/server/TThreadedServer.cpp \
+											 src/async/TAsyncChannel.cpp \
                        src/processor/PeekProcessor.cpp
 
-libthriftnb_la_SOURCES = src/server/TNonblockingServer.cpp
+libthriftnb_la_SOURCES = src/server/TNonblockingServer.cpp \
+                         src/async/TAsyncProtocolProcessor.cpp
 
 libthriftz_la_SOURCES = src/transport/TZlibTransport.cpp
 
@@ -80,7 +80,8 @@ libthriftz_la_SOURCES = src/transport/TZlibTransport.cpp
 # Flags for the various libraries
 libthriftnb_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBEVENT_CPPFLAGS)
 libthriftz_la_CPPFLAGS  = $(AM_CPPFLAGS) $(ZLIB_CPPFLAGS)
-
+libthriftnb_la_CXXFLAGS = $(AM_CXXFLAGS)
+libthriftz_la_CXXFLAGS  = $(AM_CXXFLAGS)
 
 include_thriftdir = $(includedir)/thrift
 include_thrift_HEADERS = \
@@ -105,14 +106,16 @@ include_concurrency_HEADERS = \
 include_protocoldir = $(include_thriftdir)/protocol
 include_protocol_HEADERS = \
                          src/protocol/TBinaryProtocol.h \
+                         src/protocol/TBinaryProtocol.tcc \
                          src/protocol/TCompactProtocol.h \
+                         src/protocol/TCompactProtocol.tcc \
                          src/protocol/TDenseProtocol.h \
                          src/protocol/TDebugProtocol.h \
-                         src/protocol/TOneWayProtocol.h \
                          src/protocol/TBase64Utils.h \
                          src/protocol/TJSONProtocol.h \
                          src/protocol/TProtocolTap.h \
                          src/protocol/TProtocolException.h \
+                         src/protocol/TVirtualProtocol.h \
                          src/protocol/TProtocol.h
 
 include_transportdir = $(include_thriftdir)/transport
@@ -127,6 +130,7 @@ include_transport_HEADERS = \
                          src/transport/THttpServer.h \
                          src/transport/TSocket.h \
                          src/transport/TSocketPool.h \
+                         src/transport/TVirtualTransport.h \
                          src/transport/TTransport.h \
                          src/transport/TTransportException.h \
                          src/transport/TTransportUtils.h \
@@ -146,6 +150,17 @@ include_processordir = $(include_thriftdir)/processor
 include_processor_HEADERS = \
                          src/processor/PeekProcessor.h \
                          src/processor/StatsProcessor.h
+
+include_asyncdir = $(include_thriftdir)/async
+include_async_HEADERS = \
+                     src/async/TAsyncChannel.h \
+                     src/async/TAsyncProcessor.h \
+                     src/async/TAsyncBufferProcessor.h \
+                     src/async/TAsyncProtocolProcessor.h \
+                     src/async/TEvhttpClientChannel.h \
+                     src/async/TEvhttpServer.h \
+                     src/async/SimpleCallback.h
+
 
 noinst_PROGRAMS = concurrency_test
 

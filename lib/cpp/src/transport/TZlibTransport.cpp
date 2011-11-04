@@ -94,8 +94,16 @@ TZlibTransport::~TZlibTransport() {
   int rv;
   rv = inflateEnd(rstream_);
   checkZlibRvNothrow(rv, rstream_->msg);
+
   rv = deflateEnd(wstream_);
-  checkZlibRvNothrow(rv, wstream_->msg);
+  // Z_DATA_ERROR may be returned if the caller has written data, but not
+  // called flush() to actually finish writing the data out to the underlying
+  // transport.  The defined TTransport behavior in this case is that this data
+  // may be discarded, so we ignore the error and silently discard the data.
+  // For other erros, log a message.
+  if (rv != Z_DATA_ERROR) {
+    checkZlibRvNothrow(rv, wstream_->msg);
+  }
 
   delete[] urbuf_;
   delete[] crbuf_;
@@ -127,14 +135,14 @@ inline int TZlibTransport::readAvail() {
 }
 
 uint32_t TZlibTransport::read(uint8_t* buf, uint32_t len) {
-  int need = len;
+  uint32_t need = len;
 
   // TODO(dreiss): Skip urbuf on big reads.
 
   while (true) {
     // Copy out whatever we have available, then give them the min of
     // what we have and what they want, then advance indices.
-    int give = std::min(readAvail(), need);
+    int give = std::min((uint32_t) readAvail(), need);
     memcpy(buf, urbuf_ + urpos_, give);
     need -= give;
     buf += give;
@@ -143,6 +151,14 @@ uint32_t TZlibTransport::read(uint8_t* buf, uint32_t len) {
     // If they were satisfied, we are done.
     if (need == 0) {
       return len;
+    }
+
+    // If we will need to read from the underlying transport to get more data,
+    // but we already have some data available, return it now.  Reading from
+    // the underlying transport may block, and read() is only allowed to block
+    // when no data is available.
+    if (need < len && rstream_->avail_in == 0) {
+      return len - need;
     }
 
     // If we get to this point, we need to get some more data.
@@ -157,31 +173,41 @@ uint32_t TZlibTransport::read(uint8_t* buf, uint32_t len) {
     rstream_->avail_out = urbuf_size_;
     urpos_ = 0;
 
-    // If we don't have any more compressed data available,
-    // read some from the underlying transport.
-    if (rstream_->avail_in == 0) {
-      uint32_t got = transport_->read(crbuf_, crbuf_size_);
-      if (got == 0) {
-        return len - need;
-      }
-      rstream_->next_in  = crbuf_;
-      rstream_->avail_in = got;
-    }
-
-    // We have some compressed data now.  Uncompress it.
-    int zlib_rv = inflate(rstream_, Z_SYNC_FLUSH);
-
-    if (zlib_rv == Z_STREAM_END) {
-      if (standalone_) {
-        input_ended_ = true;
-      }
-    } else {
-      checkZlibRv(zlib_rv, rstream_->msg);
+    // Call inflate() to uncompress some more data
+    if (!readFromZlib()) {
+      // no data available from underlying transport
+      return len - need;
     }
 
     // Okay.  The read buffer should have whatever we can give it now.
     // Loop back to the start and try to give some more.
   }
+}
+
+bool TZlibTransport::readFromZlib() {
+  assert(!input_ended_);
+
+  // If we don't have any more compressed data available,
+  // read some from the underlying transport.
+  if (rstream_->avail_in == 0) {
+    uint32_t got = transport_->read(crbuf_, crbuf_size_);
+    if (got == 0) {
+      return false;
+    }
+    rstream_->next_in  = crbuf_;
+    rstream_->avail_in = got;
+  }
+
+  // We have some compressed data now.  Uncompress it.
+  int zlib_rv = inflate(rstream_, Z_SYNC_FLUSH);
+
+  if (zlib_rv == Z_STREAM_END) {
+    input_ended_ = true;
+  } else {
+    checkZlibRv(zlib_rv, rstream_->msg);
+  }
+
+  return true;
 }
 
 
@@ -204,15 +230,20 @@ uint32_t TZlibTransport::read(uint8_t* buf, uint32_t len) {
 // - Deflate from the source into the compressed buffer.
 
 void TZlibTransport::write(const uint8_t* buf, uint32_t len) {
+  if (output_finished_) {
+    throw TTransportException(TTransportException::BAD_ARGS,
+                              "write() called after finish()");
+  }
+
   // zlib's "deflate" function has enough logic in it that I think
   // we're better off (performance-wise) buffering up small writes.
-  if ((int)len > MIN_DIRECT_DEFLATE_SIZE) {
-    flushToZlib(uwbuf_, uwpos_);
+  if (len > MIN_DIRECT_DEFLATE_SIZE) {
+    flushToZlib(uwbuf_, uwpos_, Z_NO_FLUSH);
     uwpos_ = 0;
-    flushToZlib(buf, len);
+    flushToZlib(buf, len, Z_NO_FLUSH);
   } else if (len > 0) {
-    if (uwbuf_size_ - uwpos_ < (int)len) {
-      flushToZlib(uwbuf_, uwpos_);
+    if (uwbuf_size_ - uwpos_ < len) {
+      flushToZlib(uwbuf_, uwpos_, Z_NO_FLUSH);
       uwpos_ = 0;
     }
     memcpy(uwbuf_ + uwpos_, buf, len);
@@ -221,19 +252,46 @@ void TZlibTransport::write(const uint8_t* buf, uint32_t len) {
 }
 
 void TZlibTransport::flush()  {
-  flushToZlib(uwbuf_, uwpos_, true);
-  assert((int)wstream_->avail_out != cwbuf_size_);
+  if (output_finished_) {
+    throw TTransportException(TTransportException::BAD_ARGS,
+                              "flush() called after finish()");
+  }
+
+  flushToTransport(Z_SYNC_FLUSH);
+}
+
+void TZlibTransport::finish()  {
+  if (output_finished_) {
+    throw TTransportException(TTransportException::BAD_ARGS,
+                              "finish() called more than once");
+  }
+
+  flushToTransport(Z_FINISH);
+}
+
+void TZlibTransport::flushToTransport(int flush)  {
+  // write pending data in uwbuf_ to zlib
+  flushToZlib(uwbuf_, uwpos_, flush);
+  uwpos_ = 0;
+
+  // write all available data from zlib to the transport
   transport_->write(cwbuf_, cwbuf_size_ - wstream_->avail_out);
+  wstream_->next_out = cwbuf_;
+  wstream_->avail_out = cwbuf_size_;
+
+  // flush the transport
   transport_->flush();
 }
 
-void TZlibTransport::flushToZlib(const uint8_t* buf, int len, bool finish) {
-  int flush = (finish ? Z_FINISH : Z_NO_FLUSH);
-
+void TZlibTransport::flushToZlib(const uint8_t* buf, int len, int flush) {
   wstream_->next_in  = const_cast<uint8_t*>(buf);
   wstream_->avail_in = len;
 
-  while (wstream_->avail_in > 0 || finish) {
+  while (true) {
+    if (flush == Z_NO_FLUSH && wstream_->avail_in == 0) {
+      break;
+    }
+
     // If our ouput buffer is full, flush to the underlying transport.
     if (wstream_->avail_out == 0) {
       transport_->write(cwbuf_, cwbuf_size_);
@@ -243,16 +301,23 @@ void TZlibTransport::flushToZlib(const uint8_t* buf, int len, bool finish) {
 
     int zlib_rv = deflate(wstream_, flush);
 
-    if (finish && zlib_rv == Z_STREAM_END) {
+    if (flush == Z_FINISH && zlib_rv == Z_STREAM_END) {
       assert(wstream_->avail_in == 0);
+      output_finished_ = true;
       break;
     }
 
     checkZlibRv(zlib_rv, wstream_->msg);
+
+    if ((flush == Z_SYNC_FLUSH || flush == Z_FULL_FLUSH) &&
+        wstream_->avail_in == 0 && wstream_->avail_out != 0) {
+      break;
+    }
   }
 }
 
 const uint8_t* TZlibTransport::borrow(uint8_t* buf, uint32_t* len) {
+  (void) buf;
   // Don't try to be clever with shifting buffers.
   // If we have enough data, give a pointer to it,
   // otherwise let the protcol use its slow path.
@@ -273,30 +338,60 @@ void TZlibTransport::consume(uint32_t len) {
 }
 
 void TZlibTransport::verifyChecksum() {
-  if (!standalone_) {
+  // If zlib has already reported the end of the stream,
+  // it has verified the checksum.
+  if (input_ended_) {
+    return;
+  }
+
+  // This should only be called when reading is complete.
+  // If the caller still has unread data, throw an exception.
+  if (readAvail() > 0) {
     throw TTransportException(
-        TTransportException::BAD_ARGS,
-        "TZLibTransport can only verify checksums for standalone objects.");
+        TTransportException::CORRUPTED_DATA,
+        "verifyChecksum() called before end of zlib stream");
   }
 
-  if (!input_ended_) {
-    // This should only be called when reading is complete,
-    // but it's possible that the whole checksum has not been fed to zlib yet.
-    // We try to read an extra byte here to force zlib to finish the stream.
-    // It might not always be easy to "unread" this byte,
-    // but we throw an exception if we get it, which is not really
-    // a recoverable error, so it doesn't matter.
-    uint8_t buf[1];
-    uint32_t got = this->read(buf, sizeof(buf));
-    if (got || !input_ended_) {
-      throw TTransportException(
-          TTransportException::CORRUPTED_DATA,
-          "Zlib stream not complete.");
-    }
+  // Reset the rstream fields, in case avail_out is 0.
+  // (Since readAvail() is 0, we know there is no unread data in urbuf_)
+  rstream_->next_out  = urbuf_;
+  rstream_->avail_out = urbuf_size_;
+  urpos_ = 0;
+
+  // Call inflate()
+  // This will throw an exception if the checksum is bad.
+  bool performed_inflate = readFromZlib();
+  if (!performed_inflate) {
+    // We needed to read from the underlying transport, and the read() call
+    // returned 0.
+    //
+    // Not all TTransport implementations behave the same way here, so we'll
+    // end up with different behavior depending on the underlying transport.
+    //
+    // For some transports (e.g., TFDTransport), read() blocks if no more data
+    // is available.  They only return 0 if EOF has been reached, or if the
+    // remote endpoint has closed the connection.  For those transports,
+    // verifyChecksum() will block until the checksum becomes available.
+    //
+    // Other transport types (e.g., TMemoryBuffer) always return 0 immediately
+    // if no more data is available.  For those transport types, verifyChecksum
+    // will raise the following exception if the checksum is not available from
+    // the underlying transport yet.
+    throw TTransportException(TTransportException::CORRUPTED_DATA,
+                              "checksum not available yet in "
+                              "verifyChecksum()");
   }
 
-  // If the checksum had been bad, we would have gotten an error while
-  // inflating.
+  // If input_ended_ is true now, the checksum has been verified
+  if (input_ended_) {
+    return;
+  }
+
+  // The caller invoked us before the actual end of the data stream
+  assert(rstream_->avail_out < urbuf_size_);
+  throw TTransportException(TTransportException::CORRUPTED_DATA,
+                            "verifyChecksum() called before end of "
+                            "zlib stream");
 }
 
 

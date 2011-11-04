@@ -17,6 +17,7 @@
  * under the License.
  */
 
+namespace c_glib TTest
 namespace cpp thrift.test.debug
 namespace java thrift.test
 
@@ -34,8 +35,8 @@ struct Doubles {
 struct OneOfEach {
   1: bool im_true,
   2: bool im_false,
-  3: byte a_bite = 200,
-  4: i16 integer16 = 33000,
+  3: byte a_bite = 0x7f,
+  4: i16 integer16 = 0x7fff,
   5: i32 integer32,
   6: i64 integer64 = 10000000000,
   7: double double_precision,
@@ -272,13 +273,14 @@ enum SomeEnum {
   TWO = 2
 }
 
-const SomeEnum MY_SOME_ENUM = ONE
+/** This is a docstring on a constant! */
+const SomeEnum MY_SOME_ENUM = SomeEnum.ONE
 
 const SomeEnum MY_SOME_ENUM_1 = 1
 /*const SomeEnum MY_SOME_ENUM_2 = 7*/
 
 const map<SomeEnum,SomeEnum> MY_ENUM_MAP = {
-  ONE : TWO
+  SomeEnum.ONE : SomeEnum.TWO
 }
 
 struct StructWithSomeEnum {
@@ -286,7 +288,7 @@ struct StructWithSomeEnum {
 }
 
 const map<SomeEnum,StructWithSomeEnum> EXTRA_CRAZY_MAP = {
-  ONE : {"blah" : TWO}
+  SomeEnum.ONE : {"blah" : SomeEnum.TWO}
 }
 
 union TestUnion {

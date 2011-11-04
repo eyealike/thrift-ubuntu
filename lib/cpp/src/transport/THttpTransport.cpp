@@ -44,7 +44,7 @@ THttpTransport::THttpTransport(boost::shared_ptr<TTransport> transport) :
 void THttpTransport::init() {
   httpBuf_ = (char*)std::malloc(httpBufSize_+1);
   if (httpBuf_ == NULL) {
-    throw TTransportException("Out of memory.");
+    throw std::bad_alloc();
   }
   httpBuf_[httpBufLen_] = '\0';
 }
@@ -66,13 +66,14 @@ uint32_t THttpTransport::read(uint8_t* buf, uint32_t len) {
   return readBuffer_.read(buf, len);
 }
 
-void THttpTransport::readEnd() {
+uint32_t THttpTransport::readEnd() {
   // Read any pending chunked data (footers etc.)
   if (chunked_) {
     while (!chunkedDone_) {
       readChunked();
     }
   }
+  return 0;
 }
 
 uint32_t THttpTransport::readMoreData() {
@@ -126,9 +127,9 @@ uint32_t THttpTransport::parseChunkSize(char* line) {
   if (semi != NULL) {
     *semi = '\0';
   }
-  int size = 0;
+  uint32_t size = 0;
   sscanf(line, "%x", &size);
-  return (uint32_t)size;
+  return size;
 }
 
 uint32_t THttpTransport::readContent(uint32_t size) {
@@ -196,7 +197,7 @@ void THttpTransport::refill() {
     httpBufSize_ *= 2;
     httpBuf_ = (char*)std::realloc(httpBuf_, httpBufSize_+1);
     if (httpBuf_ == NULL) {
-      throw TTransportException("Out of memory.");
+      throw std::bad_alloc();
     }
   }
 

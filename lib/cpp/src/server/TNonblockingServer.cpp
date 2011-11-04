@@ -56,12 +56,18 @@ class TConnection::Task: public Runnable {
     processor_(processor),
     input_(input),
     output_(output),
-    connection_(connection) {}
+    connection_(connection),
+    serverEventHandler_(connection_->getServerEventHandler()),
+    connectionContext_(connection_->getConnectionContext()) {}
 
   void run() {
     try {
-      while (processor_->process(input_, output_)) {
-        if (!input_->getTransport()->peek()) {
+      for (;;) {
+        if (serverEventHandler_ != NULL) {
+          serverEventHandler_->processContext(connectionContext_, connection_->getTSocket());
+        }
+        if (!processor_->process(input_, output_, connectionContext_) ||
+            !input_->getTransport()->peek()) {
           break;
         }
       }
@@ -91,10 +97,15 @@ class TConnection::Task: public Runnable {
   boost::shared_ptr<TProtocol> input_;
   boost::shared_ptr<TProtocol> output_;
   TConnection* connection_;
+  boost::shared_ptr<TServerEventHandler> serverEventHandler_;
+  void* connectionContext_;
 };
 
-void TConnection::init(int socket, short eventFlags, TNonblockingServer* s) {
-  socket_ = socket;
+void TConnection::init(int socket, short eventFlags, TNonblockingServer* s,
+                       const sockaddr* addr, socklen_t addrLen) {
+  tSocket_->setSocketFD(socket);
+  tSocket_->setCachedAddress(addr, addrLen);
+
   server_ = s;
   appState_ = APP_INIT;
   eventFlags_ = 0;
@@ -105,9 +116,11 @@ void TConnection::init(int socket, short eventFlags, TNonblockingServer* s) {
   writeBuffer_ = NULL;
   writeBufferSize_ = 0;
   writeBufferPos_ = 0;
+  largestWriteBufferSize_ = 0;
 
-  socketState_ = SOCKET_RECV;
+  socketState_ = SOCKET_RECV_FRAMING;
   appState_ = APP_INIT;
+  callsForResize_ = 0;
 
   // Set flags, which also registers the event
   setFlags(eventFlags);
@@ -119,37 +132,79 @@ void TConnection::init(int socket, short eventFlags, TNonblockingServer* s) {
   // Create protocol
   inputProtocol_ = s->getInputProtocolFactory()->getProtocol(factoryInputTransport_);
   outputProtocol_ = s->getOutputProtocolFactory()->getProtocol(factoryOutputTransport_);
+
+  // Set up for any server event handler
+  serverEventHandler_ = server_->getEventHandler();
+  if (serverEventHandler_ != NULL) {
+    connectionContext_ = serverEventHandler_->createContext(inputProtocol_, outputProtocol_);
+  } else {
+    connectionContext_ = NULL;
+  }
 }
 
 void TConnection::workSocket() {
-  int flags=0, got=0, left=0, sent=0;
+  int got=0, left=0, sent=0;
   uint32_t fetch = 0;
 
   switch (socketState_) {
+  case SOCKET_RECV_FRAMING:
+    union {
+      uint8_t buf[sizeof(uint32_t)];
+      int32_t size;
+    } framing;
+
+    // if we've already received some bytes we kept them here
+    framing.size = readWant_;
+    // determine size of this frame
+    try {
+      // Read from the socket
+      fetch = tSocket_->read(&framing.buf[readBufferPos_],
+                             uint32_t(sizeof(framing.size) - readBufferPos_));
+      if (fetch == 0) {
+        // Whenever we get here it means a remote disconnect
+        close();
+        return;
+      }
+      readBufferPos_ += fetch;
+    } catch (TTransportException& te) {
+      GlobalOutput.printf("TConnection::workSocket(): %s", te.what());
+      close();
+
+      return;
+    }
+
+    if (readBufferPos_ < sizeof(framing.size)) {
+      // more needed before frame size is known -- save what we have so far
+      readWant_ = framing.size;
+      return;
+    }
+
+    readWant_ = ntohl(framing.size);
+    if (static_cast<int>(readWant_) <= 0) {
+      GlobalOutput.printf("TConnection:workSocket() Negative frame size %d, remote side not using TFramedTransport?", static_cast<int>(readWant_));
+      close();
+      return;
+    }
+    // size known; now get the rest of the frame
+    transition();
+    return;
+
   case SOCKET_RECV:
     // It is an error to be in this state if we already have all the data
     assert(readBufferPos_ < readWant_);
 
-    // Double the buffer size until it is big enough
-    if (readWant_ > readBufferSize_) {
-      uint32_t newSize = readBufferSize_;
-      while (readWant_ > newSize) {
-        newSize *= 2;
-      }
-      uint8_t* newBuffer = (uint8_t*)std::realloc(readBuffer_, newSize);
-      if (newBuffer == NULL) {
-        GlobalOutput("TConnection::workSocket() realloc");
-        close();
-        return;
-      }
-      readBuffer_ = newBuffer;
-      readBufferSize_ = newSize;
+    try {
+      // Read from the socket
+      fetch = readWant_ - readBufferPos_;
+      got = tSocket_->read(readBuffer_ + readBufferPos_, fetch);
     }
+    catch (TTransportException& te) {
+      GlobalOutput.printf("TConnection::workSocket(): %s", te.what());
+      close();
 
-    // Read from the socket
-    fetch = readWant_ - readBufferPos_;
-    got = recv(socket_, readBuffer_ + readBufferPos_, fetch, 0);
-
+      return;
+    }
+        
     if (got > 0) {
       // Move along in the buffer
       readBufferPos_ += got;
@@ -162,15 +217,6 @@ void TConnection::workSocket() {
         transition();
       }
       return;
-    } else if (got == -1) {
-      // Blocking errors are okay, just move on
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return;
-      }
-
-      if (errno != ECONNRESET) {
-        GlobalOutput.perror("TConnection::workSocket() recv -1 ", errno);
-      }
     }
 
     // Whenever we get down here it means a remote disconnect
@@ -189,24 +235,12 @@ void TConnection::workSocket() {
       return;
     }
 
-    flags = 0;
-    #ifdef MSG_NOSIGNAL
-    // Note the use of MSG_NOSIGNAL to suppress SIGPIPE errors, instead we
-    // check for the EPIPE return condition and close the socket in that case
-    flags |= MSG_NOSIGNAL;
-    #endif // ifdef MSG_NOSIGNAL
-
-    left = writeBufferSize_ - writeBufferPos_;
-    sent = send(socket_, writeBuffer_ + writeBufferPos_, left, flags);
-
-    if (sent <= 0) {
-      // Blocking errors are okay, just move on
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return;
-      }
-      if (errno != EPIPE) {
-        GlobalOutput.perror("TConnection::workSocket() send -1 ", errno);
-      }
+    try {
+      left = writeBufferSize_ - writeBufferPos_;
+      sent = tSocket_->write_partial(writeBuffer_ + writeBufferPos_, left);
+    }
+    catch (TTransportException& te) {
+      GlobalOutput.printf("TConnection::workSocket(): %s ", te.what());
       close();
       return;
     }
@@ -235,33 +269,14 @@ void TConnection::workSocket() {
  * to, or finished receiving the data that it needed to.
  */
 void TConnection::transition() {
-
-  int sz = 0;
-
   // Switch upon the state that we are currently in and move to a new state
   switch (appState_) {
 
   case APP_READ_REQUEST:
     // We are done reading the request, package the read buffer into transport
     // and get back some data from the dispatch function
-    // If we've used these transport buffers enough times, reset them to avoid bloating
-
     inputTransport_->resetBuffer(readBuffer_, readBufferPos_);
-    ++numReadsSinceReset_;
-    if (numWritesSinceReset_ < 512) {
-      outputTransport_->resetBuffer();
-    } else {
-      // reset the capacity of the output transport if we used it enough times that it might be bloated
-      try {
-        outputTransport_->resetBuffer(true);
-        numWritesSinceReset_ = 0;
-      } catch (TTransportException &ttx) {
-        GlobalOutput.printf("TTransportException: TMemoryBuffer::resetBuffer() %s", ttx.what());
-        close();
-        return;
-      }
-    }
-
+    outputTransport_->resetBuffer();
     // Prepend four bytes of blank space to the buffer so we can
     // write the frame size there later.
     outputTransport_->getWritePtr(4);
@@ -297,7 +312,7 @@ void TConnection::transition() {
     } else {
       try {
         // Invoke the processor
-        server_->getProcessor()->process(inputProtocol_, outputProtocol_);
+        server_->getProcessor()->process(inputProtocol_, outputProtocol_, NULL);
       } catch (TTransportException &ttx) {
         GlobalOutput.printf("TTransportException: Server::process() %s", ttx.what());
         server_->decrementActiveProcessors();
@@ -356,40 +371,32 @@ void TConnection::transition() {
     goto LABEL_APP_INIT;
 
   case APP_SEND_RESULT:
-
-    ++numWritesSinceReset_;
+    // it's now safe to perform buffer size housekeeping.
+    if (writeBufferSize_ > largestWriteBufferSize_) {
+      largestWriteBufferSize_ = writeBufferSize_;
+    }
+    if (server_->getResizeBufferEveryN() > 0
+        && ++callsForResize_ >= server_->getResizeBufferEveryN()) {
+      checkIdleBufferMemLimit(server_->getIdleReadBufferLimit(),
+                              server_->getIdleWriteBufferLimit());
+      callsForResize_ = 0;
+    }
 
     // N.B.: We also intentionally fall through here into the INIT state!
 
   LABEL_APP_INIT:
   case APP_INIT:
 
-    // reset the input buffer if we used it enough times that it might be bloated
-    if (numReadsSinceReset_ > 512)
-    {
-      void * new_buffer = std::realloc(readBuffer_, 1024);
-      if (new_buffer == NULL) {
-        GlobalOutput("TConnection::transition() realloc");
-        close();
-        return;
-      }
-      readBuffer_ = (uint8_t*) new_buffer;
-      readBufferSize_ = 1024;
-      numReadsSinceReset_ = 0;
-    }
-
     // Clear write buffer variables
     writeBuffer_ = NULL;
     writeBufferPos_ = 0;
     writeBufferSize_ = 0;
 
-    // Set up read buffer for getting 4 bytes
-    readBufferPos_ = 0;
-    readWant_ = 4;
-
     // Into read4 state we go
-    socketState_ = SOCKET_RECV;
+    socketState_ = SOCKET_RECV_FRAMING;
     appState_ = APP_READ_FRAME_SIZE;
+
+    readBufferPos_ = 0;
 
     // Register read event
     setRead();
@@ -400,21 +407,30 @@ void TConnection::transition() {
     return;
 
   case APP_READ_FRAME_SIZE:
-    // We just read the request length, deserialize it
-    sz = *(int32_t*)readBuffer_;
-    sz = (int32_t)ntohl(sz);
+    // We just read the request length
+    // Double the buffer size until it is big enough
+    if (readWant_ > readBufferSize_) {
+      if (readBufferSize_ == 0) {
+        readBufferSize_ = 1;
+      }
+      uint32_t newSize = readBufferSize_;
+      while (readWant_ > newSize) {
+        newSize *= 2;
+      }
 
-    if (sz <= 0) {
-      GlobalOutput.printf("TConnection:transition() Negative frame size %d, remote side not using TFramedTransport?", sz);
-      close();
-      return;
+      uint8_t* newBuffer = (uint8_t*)std::realloc(readBuffer_, newSize);
+      if (newBuffer == NULL) {
+        // nothing else to be done...
+        throw std::bad_alloc();
+      }
+      readBuffer_ = newBuffer;
+      readBufferSize_ = newSize;
     }
 
-    // Reset the read buffer
-    readWant_ = (uint32_t)sz;
     readBufferPos_= 0;
 
     // Move into read request state
+    socketState_ = SOCKET_RECV;
     appState_ = APP_READ_REQUEST;
 
     // Work the socket right away
@@ -482,7 +498,8 @@ void TConnection::setFlags(short eventFlags) {
    * ev structure for multiple monitored descriptors; each descriptor needs
    * its own ev.
    */
-  event_set(&event_, socket_, eventFlags_, TConnection::eventHandler, this);
+  event_set(&event_, tSocket_->getSocketFD(), eventFlags_,
+            TConnection::eventHandler, this);
   event_base_set(server_->getEventBase(), &event_);
 
   // Add the event
@@ -497,14 +514,15 @@ void TConnection::setFlags(short eventFlags) {
 void TConnection::close() {
   // Delete the registered libevent
   if (event_del(&event_) == -1) {
-    GlobalOutput("TConnection::close() event_del");
+    GlobalOutput.perror("TConnection::close() event_del", errno);
+  }
+
+  if (serverEventHandler_ != NULL) {
+    serverEventHandler_->deleteContext(connectionContext_, inputProtocol_, outputProtocol_);
   }
 
   // Close the socket
-  if (socket_ >= 0) {
-    ::close(socket_);
-  }
-  socket_ = -1;
+  tSocket_->close();
 
   // close any factory produced transports
   factoryInputTransport_->close();
@@ -514,14 +532,41 @@ void TConnection::close() {
   server_->returnConnection(this);
 }
 
-void TConnection::checkIdleBufferMemLimit(size_t limit) {
-  if (readBufferSize_ > limit) {
-    readBufferSize_ = limit;
-    readBuffer_ = (uint8_t*)std::realloc(readBuffer_, readBufferSize_);
-    if (readBuffer_ == NULL) {
-      GlobalOutput("TConnection::checkIdleBufferMemLimit() realloc");
-      close();
-    }
+void TConnection::checkIdleBufferMemLimit(size_t readLimit,
+                                          size_t writeLimit) {
+  if (readLimit > 0 && readBufferSize_ > readLimit) {
+    free(readBuffer_);
+    readBuffer_ = NULL;
+    readBufferSize_ = 0;
+  }
+
+  if (writeLimit > 0 && largestWriteBufferSize_ > writeLimit) {
+    // just start over
+    outputTransport_->resetBuffer(server_->getWriteBufferDefaultSize());
+    largestWriteBufferSize_ = 0;
+  }
+}
+
+TNonblockingServer::~TNonblockingServer() {
+  // TODO: We currently leak any active TConnection objects.
+  // Since we're shutting down and destroying the event_base, the TConnection
+  // objects will never receive any additional callbacks.  (And even if they
+  // did, it would be bad, since they keep a pointer around to the server,
+  // which is being destroyed.)
+
+  // Clean up unused TConnection objects in connectionStack_
+  while (!connectionStack_.empty()) {
+    TConnection* connection = connectionStack_.top();
+    connectionStack_.pop();
+    delete connection;
+  }
+
+  if (eventBase_) {
+    event_base_free(eventBase_);
+  }
+
+  if (serverSocket_ >= 0) {
+    close(serverSocket_);
   }
 }
 
@@ -529,14 +574,16 @@ void TConnection::checkIdleBufferMemLimit(size_t limit) {
  * Creates a new connection either by reusing an object off the stack or
  * by allocating a new one entirely
  */
-TConnection* TNonblockingServer::createConnection(int socket, short flags) {
+TConnection* TNonblockingServer::createConnection(int socket, short flags,
+                                                  const sockaddr* addr,
+                                                  socklen_t addrLen) {
   // Check the stack
   if (connectionStack_.empty()) {
-    return new TConnection(socket, flags, this);
+    return new TConnection(socket, flags, this, addr, addrLen);
   } else {
     TConnection* result = connectionStack_.top();
     connectionStack_.pop();
-    result->init(socket, flags, this);
+    result->init(socket, flags, this, addr, addrLen);
     return result;
   }
 }
@@ -549,7 +596,7 @@ void TNonblockingServer::returnConnection(TConnection* connection) {
       (connectionStack_.size() >= connectionStackLimit_)) {
     delete connection;
   } else {
-    connection->checkIdleBufferMemLimit(idleBufferMemLimit_);
+    connection->checkIdleBufferMemLimit(idleReadBufferLimit_, idleWriteBufferLimit_);
     connectionStack_.push(connection);
   }
 }
@@ -559,13 +606,15 @@ void TNonblockingServer::returnConnection(TConnection* connection) {
  * connections on fd and assign TConnection objects to handle those requests.
  */
 void TNonblockingServer::handleEvent(int fd, short which) {
+  (void) which;
   // Make sure that libevent didn't mess up the socket handles
   assert(fd == serverSocket_);
 
   // Server socket accepted a new connection
   socklen_t addrLen;
-  struct sockaddr addr;
-  addrLen = sizeof(addr);
+  sockaddr_storage addrStorage;
+  sockaddr* addrp = (sockaddr*)&addrStorage;
+  addrLen = sizeof(addrStorage);
 
   // Going to accept a new client socket
   int clientSocket;
@@ -573,7 +622,7 @@ void TNonblockingServer::handleEvent(int fd, short which) {
   // Accept as many new clients as possible, even though libevent signaled only
   // one, this helps us to avoid having to go back into the libevent engine so
   // many times
-  while ((clientSocket = accept(fd, &addr, &addrLen)) != -1) {
+  while ((clientSocket = ::accept(fd, addrp, &addrLen)) != -1) {
     // If we're overloaded, take action here
     if (overloadAction_ != T_OVERLOAD_NO_ACTION && serverOverloaded()) {
       nConnectionsDropped_++;
@@ -600,7 +649,7 @@ void TNonblockingServer::handleEvent(int fd, short which) {
 
     // Create a new TConnection for this client socket.
     TConnection* clientConnection =
-      createConnection(clientSocket, EV_READ | EV_PERSIST);
+      createConnection(clientSocket, EV_READ | EV_PERSIST, addrp, addrLen);
 
     // Fail fast if we could not create a TConnection object
     if (clientConnection == NULL) {
@@ -613,7 +662,7 @@ void TNonblockingServer::handleEvent(int fd, short which) {
     clientConnection->transition();
 
     // addrLen is written by the accept() call, so needs to be set before the next call.
-    addrLen = sizeof(addr);
+    addrLen = sizeof(addrStorage);
   }
 
   // Done looping accept, now we have to make sure the error is due to

@@ -28,7 +28,9 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-public class TBaseHelper {
+public final class TBaseHelper {
+
+  private TBaseHelper(){}
 
   private static final Comparator comparator = new NestedStructureComparator();
 
@@ -239,5 +241,65 @@ public class TBaseHelper {
   public static String paddedByteString(byte b) {
     int extended = (b | 0x100) & 0x1ff;
     return Integer.toHexString(extended).toUpperCase().substring(1);
+  }
+
+  public static byte[] byteBufferToByteArray(ByteBuffer byteBuffer) {
+    if (wrapsFullArray(byteBuffer)) {
+      return byteBuffer.array();
+    }
+    byte[] target = new byte[byteBuffer.remaining()];
+    byteBufferToByteArray(byteBuffer, target, 0);
+    return target;
+  }
+
+  public static boolean wrapsFullArray(ByteBuffer byteBuffer) {
+    return byteBuffer.hasArray()
+      && byteBuffer.position() == 0
+      && byteBuffer.arrayOffset() == 0
+      && byteBuffer.remaining() == byteBuffer.capacity();
+  }
+
+  public static int byteBufferToByteArray(ByteBuffer byteBuffer, byte[] target, int offset) {
+    int remaining = byteBuffer.remaining();
+    System.arraycopy(byteBuffer.array(),
+        byteBuffer.arrayOffset() + byteBuffer.position(),
+        target,
+        offset,
+        remaining);
+    return remaining;
+  }
+
+  public static ByteBuffer rightSize(ByteBuffer in) {
+    if (in == null) {
+      return null;
+    }
+    if (wrapsFullArray(in)) {
+      return in;
+    }
+    return ByteBuffer.wrap(byteBufferToByteArray(in));
+  }
+
+  public static ByteBuffer copyBinary(final ByteBuffer orig) {
+    if (orig == null) {
+      return null;
+    }
+    ByteBuffer copy = ByteBuffer.wrap(new byte[orig.remaining()]);
+    if (orig.hasArray()) {
+      System.arraycopy(orig.array(), orig.arrayOffset() + orig.position(), copy.array(), 0, orig.remaining());
+    } else {
+      orig.slice().get(copy.array());
+    }
+
+    return copy;
+  }
+
+  public static byte[] copyBinary(final byte[] orig) {
+    if (orig == null) {
+      return null;
+    }
+
+    byte[] copy = new byte[orig.length];
+    System.arraycopy(orig, 0, copy, 0, orig.length);
+    return copy;
   }
 }

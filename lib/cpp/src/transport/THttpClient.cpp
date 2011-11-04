@@ -68,7 +68,7 @@ bool THttpClient::parseStatusLine(char* status) {
   }
 
   *code = '\0';
-  while (*(code++) == ' ');
+  while (*(code++) == ' ') {};
 
   char* msg = strchr(code, ' ');
   if (msg == NULL) {

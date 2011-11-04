@@ -18,6 +18,7 @@
  */
 package org.apache.thrift;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -138,5 +139,54 @@ public class TestTBaseHelper extends TestCase {
     a.add(new byte[]{'a','b', 'd'});
     b.add(new byte[]{'a','b', 'a'});
     assertTrue(TBaseHelper.compareTo(a, b) > 0);
+  }
+
+  public void testByteBufferToByteArray() throws Exception {
+    byte[] b1 = {10,9,8,7,6,5,4,3,2,1,0};
+    byte[] b2 = TBaseHelper.byteBufferToByteArray(ByteBuffer.wrap(b1));
+    assertEquals("b1 and b2 should be the exact same array (identity) due to fast path", b1, b2);
+
+    byte[] b3 = TBaseHelper.byteBufferToByteArray(ByteBuffer.wrap(b1, 1, 3));
+    assertEquals(3, b3.length);
+    assertEquals(ByteBuffer.wrap(b1, 1, 3), ByteBuffer.wrap(b3));
+  }
+
+  public void testRightSize() throws Exception {
+    assertNull(TBaseHelper.rightSize(null));
+  }
+
+  public void testCopyBinaryWithByteBuffer() throws Exception {
+    byte[] bytes = new byte[]{0, 1, 2, 3, 4, 5};
+    ByteBuffer b = ByteBuffer.wrap(bytes);
+    ByteBuffer bCopy = TBaseHelper.copyBinary(b);
+    assertEquals(b, bCopy);
+    assertEquals(0, b.position());
+
+    b = ByteBuffer.allocateDirect(6);
+    b.put(bytes);
+    b.position(0);
+    bCopy = TBaseHelper.copyBinary(b);
+    assertEquals(6, b.remaining());
+    assertEquals(0, b.position());
+    assertEquals(b, bCopy);
+
+    b.mark();
+    b.get();
+    bCopy = TBaseHelper.copyBinary(b);
+    assertEquals(ByteBuffer.wrap(bytes, 1, 5), bCopy);
+    assertEquals(1, b.position());
+    b.reset();
+    assertEquals(0, b.position());
+
+    assertNull(TBaseHelper.copyBinary((ByteBuffer)null));
+  }
+
+  public void testCopyBinaryWithByteArray() throws Exception {
+    byte[] bytes = new byte[]{0, 1, 2, 3, 4, 5};
+    byte[] copy = TBaseHelper.copyBinary(bytes);
+    assertEquals(ByteBuffer.wrap(bytes), ByteBuffer.wrap(copy));
+    assertNotSame(bytes, copy);
+
+    assertNull(TBaseHelper.copyBinary((byte[])null));
   }
 }

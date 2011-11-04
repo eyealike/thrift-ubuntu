@@ -42,6 +42,7 @@ class t_php_generator : public t_oop_generator {
       const std::string& option_string)
     : t_oop_generator(program)
   {
+    (void) option_string;
     std::map<std::string, std::string>::const_iterator iter;
 
     iter = parsed_options.find("inlined");
@@ -66,6 +67,8 @@ class t_php_generator : public t_oop_generator {
     out_dir_base_ = (binary_inline_ ? "gen-phpi" : "gen-php");
     escape_['$'] = "\\$";
   }
+
+  static bool is_valid_namespace(const std::string& sub_namespace);
 
   /**
    * Init and close methods
@@ -183,6 +186,22 @@ class t_php_generator : public t_oop_generator {
     return ns.size() ? (ns + "_") : "";
   }
 
+  std::string php_path(t_program* p) {
+    std::string ns = p->get_namespace("php.path");
+    if (ns.empty()) {
+      return p->get_name();
+    }
+
+    // Transform the java-style namespace into a path.
+    for (std::string::iterator it = ns.begin(); it != ns.end(); ++it) {
+      if (*it == '.') {
+        *it = '/';
+      }
+    }
+
+    return ns + '/' + p->get_name();
+  }
+
  private:
 
   /**
@@ -222,6 +241,11 @@ class t_php_generator : public t_oop_generator {
 };
 
 
+bool t_php_generator::is_valid_namespace(const std::string& sub_namespace) {
+  return sub_namespace == "path";
+}
+
+
 /**
  * Prepares for file generation by opening up the necessary file output
  * streams.
@@ -247,8 +271,9 @@ void t_php_generator::init_generator() {
   const vector<t_program*>& includes = program_->get_includes();
   for (size_t i = 0; i < includes.size(); ++i) {
     string package = includes[i]->get_name();
+    string prefix = php_path(includes[i]);
     f_types_ <<
-      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << package << "/" << package << "_types.php';" << endl;
+      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << prefix << "/" << package << "_types.php';" << endl;
   }
   f_types_ << endl;
 
@@ -259,7 +284,7 @@ void t_php_generator::init_generator() {
     f_consts_ <<
       "<?php" << endl <<
       autogen_comment() <<
-      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" + program_name_ + "/" + program_name_ + "_types.php';" << endl <<
+      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" + php_path(program_) + "/" + program_name_ + "_types.php';" << endl <<
       endl <<
       "$GLOBALS['" << program_name_ << "_CONSTANTS'] = array();" << endl <<
       endl;
@@ -293,7 +318,9 @@ void t_php_generator::close_generator() {
  *
  * @param ttypedef The type definition
  */
-void t_php_generator::generate_typedef(t_typedef* ttypedef) {}
+void t_php_generator::generate_typedef(t_typedef* ttypedef) {
+  (void) ttypedef;
+}
 
 /**
  * Generates code for an enumerated type. Since define is expensive to lookup
@@ -307,14 +334,8 @@ void t_php_generator::generate_enum(t_enum* tenum) {
 
   vector<t_enum_value*> constants = tenum->get_constants();
   vector<t_enum_value*>::iterator c_iter;
-  int value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     f_types_ <<
       "  '" << (*c_iter)->get_name() << "' => " << value << "," << endl;
   }
@@ -330,28 +351,16 @@ void t_php_generator::generate_enum(t_enum* tenum) {
     "final class " << php_namespace(tenum->get_program()) << tenum->get_name() << " {" << endl;
   indent_up();
 
-  value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     indent(f_types_) <<
       "const " << (*c_iter)->get_name() << " = " << value << ";" << endl;
   }
 
   indent(f_types_) <<
     "static public $__names = array(" << endl;
-  value = -1;
   for (c_iter = constants.begin(); c_iter != constants.end(); ++c_iter) {
-    if ((*c_iter)->has_value()) {
-      value = (*c_iter)->get_value();
-    } else {
-      ++value;
-    }
-
+    int value = (*c_iter)->get_value();
     indent(f_types_) <<
       "  " << value << " => '" << (*c_iter)->get_name() << "'," << endl;
   }
@@ -431,7 +440,7 @@ string t_php_generator::render_const_value(t_type* type, t_const_value* value) {
       out << render_const_value(g_type_string, v_iter->first);
       out << " => ";
       out << render_const_value(field_type, v_iter->second);
-      out << endl;
+      out << "," << endl;
     }
     indent_down();
     indent(out) << "))";
@@ -920,11 +929,11 @@ void t_php_generator::generate_service(t_service* tservice) {
     php_includes();
 
   f_service_ <<
-    "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << program_name_ << "/" << program_name_ << "_types.php';" << endl;
+    "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << php_path(program_) << "/" << program_name_ << "_types.php';" << endl;
 
   if (tservice->get_extends() != NULL) {
     f_service_ <<
-      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << tservice->get_extends()->get_program()->get_name() << "/" << tservice->get_extends()->get_name() << ".php';" << endl;
+      "include_once $GLOBALS['THRIFT_ROOT'].'/packages/" << php_path(tservice->get_extends()->get_program()) << "/" << tservice->get_extends()->get_name() << ".php';" << endl;
   }
 
   f_service_ <<
@@ -2012,6 +2021,7 @@ void t_php_generator::generate_serialize_field(ofstream &out,
 void t_php_generator::generate_serialize_struct(ofstream &out,
                                                 t_struct* tstruct,
                                                 string prefix) {
+  (void) tstruct;
   indent(out) <<
     "$xfer += $" << prefix << "->write($output);" << endl;
 }
@@ -2297,4 +2307,5 @@ THRIFT_REGISTER_GENERATOR(php, "PHP",
 "    autoload:        Generate PHP with autoload\n"
 "    oop:             Generate PHP with object oriented subclasses\n"
 "    rest:            Generate PHP REST processors\n"
-);
+)
+
