@@ -1,8 +1,8 @@
 #!/bin/bash -ex
 
-psPlatformVersion="3.3.0"
+psPlatformVersion="3.4.0"
 distribution="lucid"
-upstreamVersion="0.4.0"
+upstreamVersion="0.6.1"
 debianVersion="0ubuntu${psPlatformVersion}"
 
 dch \
