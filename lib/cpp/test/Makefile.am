@@ -160,7 +160,7 @@ SpecializationTest_LDADD = libtestgencpp.la
 #
 define run-thrift
 	$(top_builddir)/compiler/cpp/thrift --gen cpp:dense $<
-	sed -i '' 's/#include <thrift\/\(.*\)>/#include "..\/..\/src\/\1"/' gen-cpp/$(addsuffix *,$(notdir $(basename $<)))
+	$(SED) -i 's/#include <thrift\/\(.*\)>/#include "..\/..\/src\/\1"/' gen-cpp/$(addsuffix *,$(notdir $(basename $<)))
 endef
 
 gen-cpp/DebugProtoTest_types.cpp gen-cpp/DebugProtoTest_types.h: $(top_srcdir)/test/DebugProtoTest.thrift
