@@ -133,6 +133,7 @@
 /lib/rb/ext/Makefile
 /lib/rb/ext/mkmf.log
 /lib/rb/ext/thrift_native.bundle
+/lib/rb/InstalledFiles
 /lib/rb/Makefile
 /lib/rb/Makefile.in
 /libtool
