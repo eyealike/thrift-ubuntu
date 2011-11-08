@@ -158,19 +158,22 @@ SpecializationTest_LDADD = libtestgencpp.la
 #
 # Common thrift code generation rules
 #
-THRIFT = $(top_builddir)/compiler/cpp/thrift
+define run-thrift
+	$(top_builddir)/compiler/cpp/thrift --gen cpp:dense $<
+	sed -i '' 's/#include <thrift\/\(.*\)>/#include "..\/..\/src\/\1"/' gen-cpp/$(addsuffix *,$(notdir $(basename $<)))
+endef
 
 gen-cpp/DebugProtoTest_types.cpp gen-cpp/DebugProtoTest_types.h: $(top_srcdir)/test/DebugProtoTest.thrift
-	$(THRIFT) --gen cpp:dense $<
+	$(run-thrift)
 
 gen-cpp/OptionalRequiredTest_types.cpp gen-cpp/OptionalRequiredTest_types.h: $(top_srcdir)/test/OptionalRequiredTest.thrift
-	$(THRIFT) --gen cpp:dense $<
+	$(run-thrift)
 
 gen-cpp/Service.cpp gen-cpp/StressTest_types.cpp: $(top_srcdir)/test/StressTest.thrift
-	$(THRIFT) --gen cpp:dense $<
+	$(run-thrift)
 
 gen-cpp/SecondService.cpp gen-cpp/ThriftTest_constants.cpp gen-cpp/ThriftTest.cpp gen-cpp/ThriftTest_types.cpp gen-cpp/ThriftTest_types.h: $(top_srcdir)/test/ThriftTest.thrift
-	$(THRIFT) --gen cpp:dense $<
+	$(run-thrift)
 
 INCLUDES = \
 	-I$(top_srcdir)/lib/cpp/src
