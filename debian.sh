@@ -5,6 +5,8 @@ distribution="lucid"
 upstreamVersion="0.6.1"
 debianVersion="0ubuntu1"
 
+./bootstrap.sh
+
 dch \
 	--distribution "${distribution}" \
 	--force-distribution \
