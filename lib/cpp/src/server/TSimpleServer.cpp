@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#include "../server/TSimpleServer.h"
+#include "TSimpleServer.h"
 #include "../transport/TTransportException.h"
 #include <string>
 #include <iostream>

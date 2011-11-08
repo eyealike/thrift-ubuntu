@@ -21,7 +21,7 @@
 #define _THRIFT_CONCURRENCY_FUNCTION_RUNNER_H 1
 
 #include <tr1/functional>
-#include "thrift/lib/cpp/concurrency/Thread.h"
+#include "Thread.h"
 
 namespace apache { namespace thrift { namespace concurrency {
 

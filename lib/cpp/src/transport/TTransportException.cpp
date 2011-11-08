@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#include "../transport/TTransportException.h"
+#include "TTransportException.h"
 #include <boost/lexical_cast.hpp>
 #include <cstring>
 

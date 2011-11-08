@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <transport/THttpTransport.h>
+#include "THttpTransport.h"
 
 namespace apache { namespace thrift { namespace transport {
 

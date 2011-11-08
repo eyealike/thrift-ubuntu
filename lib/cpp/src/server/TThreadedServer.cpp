@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#include "../server/TThreadedServer.h"
+#include "TThreadedServer.h"
 #include "../transport/TTransportException.h"
 #include "../concurrency/PosixThreadFactory.h"
 

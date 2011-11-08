@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#include "../server/TThreadPoolServer.h"
+#include "TThreadPoolServer.h"
 #include "../transport/TTransportException.h"
 #include "../concurrency/Thread.h"
 #include "../concurrency/ThreadManager.h"

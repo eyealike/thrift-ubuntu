@@ -24,8 +24,8 @@
 #include <cstdlib>
 #include <sstream>
 
-#include <transport/THttpClient.h>
-#include <transport/TSocket.h>
+#include "THttpClient.h"
+#include "TSocket.h"
 
 namespace apache { namespace thrift { namespace transport {
 

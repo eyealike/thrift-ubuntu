@@ -21,7 +21,7 @@
 #include <config.h>
 #endif
 
-#include "../transport/TTransportUtils.h"
+#include "TTransportUtils.h"
 
 using std::string;
 

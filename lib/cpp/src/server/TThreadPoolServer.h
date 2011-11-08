@@ -21,7 +21,7 @@
 #define _THRIFT_SERVER_TTHREADPOOLSERVER_H_ 1
 
 #include "../concurrency/ThreadManager.h"
-#include "../server/TServer.h"
+#include "TServer.h"
 #include "../transport/TServerTransport.h"
 
 #include <boost/shared_ptr.hpp>

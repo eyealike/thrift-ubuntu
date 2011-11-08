@@ -24,7 +24,7 @@
 #include <cassert>
 #include <cstring>
 #include <algorithm>
-#include "../transport/TZlibTransport.h"
+#include "TZlibTransport.h"
 #include <zlib.h>
 
 using std::string;

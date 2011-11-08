@@ -21,7 +21,7 @@
 #define _THRIFT_TRANSPORT_THTTPSERVER_H_ 1
 
 #include <config.h>
-#include <transport/THttpTransport.h>
+#include "THttpTransport.h"
 
 namespace apache { namespace thrift { namespace transport {
 
