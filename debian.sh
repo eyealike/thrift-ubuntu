@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
-psPlatformVersion="ps3.4.0"
-distribution="lucid"
+psPlatformVersion="3.4.0"
+distribution="snapshots"
 upstreamVersion="0.6.1"
 debianVersion="0ubuntu1"
 
@@ -9,8 +9,7 @@ debianVersion="0ubuntu1"
 
 dch \
 	--distribution "${distribution}" \
-	--force-distribution \
-	--newversion "${upstreamVersion}-${debianVersion}-${psPlatformVersion}~${BUILD_NUMBER}" \
+	--newversion "${upstreamVersion}-${debianVersion}-ps${psPlatformVersion}~${BUILD_NUMBER}" \
 	"Continuous integration build #${BUILD_NUMBER}"
 
 debuild -i -us -uc -b
