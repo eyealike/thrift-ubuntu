@@ -325,7 +325,6 @@ string t_java_generator::java_type_imports() {
     "import java.util.EnumSet;\n" +
     "import java.util.Collections;\n" +
     "import java.util.BitSet;\n" +
-    "import java.nio.ByteBuffer;\n"
     "import java.util.Arrays;\n" +
     "import org.slf4j.Logger;\n" +
     "import org.slf4j.LoggerFactory;\n\n";
@@ -767,14 +766,6 @@ void t_java_generator::generate_union_constructor(ofstream& out, t_struct* tstru
     indent(out) << "  x.set" << get_cap_name((*m_iter)->get_name()) << "(value);" << endl;
     indent(out) << "  return x;" << endl;
     indent(out) << "}" << endl << endl;
-
-    if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-      indent(out) << "public static " << type_name(tstruct) << " " << (*m_iter)->get_name() << "(byte[] value) {" << endl;
-      indent(out) << "  " << type_name(tstruct) << " x = new " << type_name(tstruct) << "();" << endl;
-      indent(out) << "  x.set" << get_cap_name((*m_iter)->get_name()) << "(ByteBuffer.wrap(value));" << endl;
-      indent(out) << "  return x;" << endl;
-      indent(out) << "}" << endl << endl;
-    }
   }
 }
 
@@ -795,44 +786,18 @@ void t_java_generator::generate_union_getters_and_setters(ofstream& out, t_struc
     std::string cap_name = get_cap_name(field->get_name());
 
     generate_java_doc(out, field);
-    if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-      indent(out) << "public byte[] get" << cap_name << "() {" << endl;
-      indent(out) << "  set" << cap_name << "(org.apache.thrift.TBaseHelper.rightSize(buffer" << get_cap_name("for") << cap_name << "()));" << endl;
-      indent(out) << "  ByteBuffer b = buffer" << get_cap_name("for") << cap_name << "();" << endl;
-      indent(out) << "  return b == null ? null : b.array();" << endl;
-      indent(out) << "}" << endl;
-
-      out << endl;
-
-      indent(out) << "public ByteBuffer buffer" << get_cap_name("for") << get_cap_name(field->get_name()) << "() {" << endl;
-      indent(out) << "  if (getSetField() == _Fields." << constant_name(field->get_name()) << ") {" << endl;
-      indent(out) << "    return (ByteBuffer)getFieldValue();" << endl;
-      indent(out) << "  } else {" << endl;
-      indent(out) << "    throw new RuntimeException(\"Cannot get field '" << field->get_name()
-        << "' because union is currently set to \" + getFieldDesc(getSetField()).name);" << endl;
-      indent(out) << "  }" << endl;
-      indent(out) << "}" << endl;
-    } else {
-      indent(out) << "public " << type_name(field->get_type()) << " get" << get_cap_name(field->get_name()) << "() {" << endl;
-      indent(out) << "  if (getSetField() == _Fields." << constant_name(field->get_name()) << ") {" << endl;
-      indent(out) << "    return (" << type_name(field->get_type(), true) << ")getFieldValue();" << endl;
-      indent(out) << "  } else {" << endl;
-      indent(out) << "    throw new RuntimeException(\"Cannot get field '" << field->get_name() 
-        << "' because union is currently set to \" + getFieldDesc(getSetField()).name);" << endl;
-      indent(out) << "  }" << endl;
-      indent(out) << "}" << endl;
-    }
+    indent(out) << "public " << type_name(field->get_type()) << " get" << get_cap_name(field->get_name()) << "() {" << endl;
+    indent(out) << "  if (getSetField() == _Fields." << constant_name(field->get_name()) << ") {" << endl;
+    indent(out) << "    return (" << type_name(field->get_type(), true) << ")getFieldValue();" << endl;
+    indent(out) << "  } else {" << endl;
+    indent(out) << "    throw new RuntimeException(\"Cannot get field '" << field->get_name()
+      << "' because union is currently set to \" + getFieldDesc(getSetField()).name);" << endl;
+    indent(out) << "  }" << endl;
+    indent(out) << "}" << endl;
 
     out << endl;
 
     generate_java_doc(out, field);
-    if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-      indent(out) << "public void set" << get_cap_name(field->get_name()) << "(byte[] value) {" << endl;
-      indent(out) << "  set" << get_cap_name(field->get_name()) << "(ByteBuffer.wrap(value));" << endl;
-      indent(out) << "}" << endl;
-
-      out << endl;
-    }
     indent(out) << "public void set" << get_cap_name(field->get_name()) << "(" << type_name(field->get_type()) << " value) {" << endl;
     if (type_can_be_null(field->get_type())) {
       indent(out) << "  if (value == null) throw new NullPointerException();" << endl;
@@ -1030,7 +995,8 @@ void t_java_generator::generate_union_comparisons(ofstream& out, t_struct* tstru
   out << endl;
 
   indent(out) << "public boolean equals(" << tstruct->get_name() << " other) {" << endl;
-  indent(out) << "  return other != null && getSetField() == other.getSetField() && getFieldValue().equals(other.getFieldValue());" << endl;
+  indent(out) << "  return other != null && getSetField() == other.getSetField() && ((value_ instanceof byte[]) ? " << endl;
+  indent(out) << "    Arrays.equals((byte[])getFieldValue(), (byte[])other.getFieldValue()) : getFieldValue().equals(other.getFieldValue()));" << endl;
   indent(out) << "}" << endl;
   out << endl;
 
@@ -1340,7 +1306,7 @@ void t_java_generator::generate_java_struct_equality(ofstream& out,
       indent() << "  return false;" << endl;
 
     if (t->is_base_type() && ((t_base_type*)t)->is_binary()) {
-      unequal = "!this." + name + ".equals(that." + name + ")";
+      unequal = "!java.util.Arrays.equals(this." + name + ", that." + name + ")";
     } else if (can_be_null) {
       unequal = "!this." + name + ".equals(that." + name + ")";
     } else {
@@ -1882,46 +1848,21 @@ void t_java_generator::generate_java_bean_boilerplate(ofstream& out,
 
     // Simple getter
     generate_java_doc(out, field);
-    if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-      indent(out) << "public byte[] get" << cap_name << "() {" << endl;
-      indent(out) << "  set" << cap_name << "(org.apache.thrift.TBaseHelper.rightSize(" << field_name << "));" << endl;
-      indent(out) << "  return " << field_name << " == null ? null : " << field_name << ".array();" << endl;
-      indent(out) << "}" << endl << endl;
-
-      indent(out) << "public ByteBuffer buffer" << get_cap_name("for") << cap_name << "() {" << endl;
-      indent(out) << "  return " << field_name << ";" << endl;
-      indent(out) << "}" << endl << endl;
+    indent(out) << "public " << type_name(type);
+    if (type->is_base_type() &&
+        ((t_base_type*)type)->get_base() == t_base_type::TYPE_BOOL) {
+      out << " is";
     } else {
-      indent(out) << "public " << type_name(type);
-      if (type->is_base_type() &&
-          ((t_base_type*)type)->get_base() == t_base_type::TYPE_BOOL) {
-        out << " is";
-      } else {
-        out << " get";
-      }
-      out << cap_name << "() {" << endl;
-      indent_up();
-      indent(out) << "return this." << field_name << ";" << endl;
-      indent_down();
-      indent(out) << "}" << endl << endl;
+      out << " get";
     }
+    out << cap_name << "() {" << endl;
+    indent_up();
+    indent(out) << "return this." << field_name << ";" << endl;
+    indent_down();
+    indent(out) << "}" << endl << endl;
 
     // Simple setter
     generate_java_doc(out, field);
-    if (type->is_base_type() && ((t_base_type*)type)->is_binary()) {
-      indent(out) << "public ";
-      if (bean_style_) {
-        out << "void";
-      } else {
-        out << type_name(tstruct);
-      }
-      out << " set" << cap_name << "(byte[] " << field_name << ") {" << endl;
-      indent(out) << "  set" << cap_name << "(" << field_name << " == null ? (ByteBuffer)null : ByteBuffer.wrap(" << field_name << "));" << endl;
-      if (!bean_style_) {
-        indent(out) << "  return this;" << endl;
-      }
-      indent(out) << "}" << endl << endl;
-    }
     indent(out) << "public ";
     if (bean_style_) {
       out << "void";
@@ -2017,7 +1958,12 @@ void t_java_generator::generate_java_struct_tostring(ofstream& out,
     }
     
     if (field->get_type()->is_base_type() && ((t_base_type*)(field->get_type()))->is_binary()) {
-      indent(out) << "org.apache.thrift.TBaseHelper.toString(this." << field->get_name() << ", sb);" << endl;
+        indent(out) << "  int __" << field->get_name() << "_size = Math.min(this." << field->get_name() << ".length, 128);" << endl;
+        indent(out) << "  for (int i = 0; i < __" << field->get_name() << "_size; i++) {" << endl;
+        indent(out) << "    if (i != 0) sb.append(\" \");" << endl;
+        indent(out) << "    sb.append(Integer.toHexString(this." << field->get_name() << "[i]).length() > 1 ? Integer.toHexString(this." << field->get_name() << "[i]).substring(Integer.toHexString(this." << field->get_name() << "[i]).length() - 2).toUpperCase() : \"0\" + Integer.toHexString(this." << field->get_name() << "[i]).toUpperCase());" <<endl;
+        indent(out) << "  }" << endl;
+        indent(out) << "  if (this." << field->get_name() << ".length > 128) sb.append(\" ...\");" << endl;
     } else {
       indent(out) << "sb.append(this." << (*f_iter)->get_name() << ");" << endl;
     }
@@ -3364,7 +3310,7 @@ string t_java_generator::base_type_name(t_base_type* type,
     return "void";
   case t_base_type::TYPE_STRING:
     if (type->is_binary()) {
-      return "ByteBuffer";
+      return "byte[]";
     } else {
       return "String";
     }
@@ -3744,7 +3690,7 @@ void t_java_generator::generate_deep_copy_container(ofstream &out, std::string s
     } else {
       // iterative copy
       if(((t_base_type*)elem_type)->is_binary()){
-        indent(out) << "ByteBuffer temp_binary_element = ";
+        indent(out) << "byte[] temp_binary_element = ";
         generate_deep_copy_non_container(out, iterator_element_name, "temp_binary_element", elem_type);
         out << ";" << endl;
         indent(out) << result_name << ".add(temp_binary_element);" << endl;
@@ -3766,8 +3712,10 @@ void t_java_generator::generate_deep_copy_container(ofstream &out, std::string s
 void t_java_generator::generate_deep_copy_non_container(ofstream& out, std::string source_name, std::string dest_name, t_type* type) {
   (void) dest_name;
   if (type->is_base_type() || type->is_enum() || type->is_typedef()) {
-    if (((t_base_type*)type)->is_binary()) {
-      out << "org.apache.thrift.TBaseHelper.copyBinary(" << source_name << ");" << endl;
+    // binary fields need to be copied with System.arraycopy
+    if (((t_base_type*)type)->is_binary()){
+      out << "new byte[" << source_name << ".length];" << endl;
+      indent(out) << "System.arraycopy(" << source_name << ", 0, " << dest_name << ", 0, " << source_name << ".length)";
     } else {
       // everything else can be copied directly
       out << source_name;

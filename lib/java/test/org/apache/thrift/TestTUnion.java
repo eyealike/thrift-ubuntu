@@ -22,15 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import junit.framework.TestCase;
-
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
@@ -42,6 +33,12 @@ import thrift.test.SomeEnum;
 import thrift.test.StructWithAUnion;
 import thrift.test.TestUnion;
 import thrift.test.TestUnionMinusStringField;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import junit.framework.TestCase;
 
 public class TestTUnion extends TestCase {
 
@@ -102,12 +99,12 @@ public class TestTUnion extends TestCase {
     assertTrue(cu.compareTo(cu2) < 0);
     assertTrue(cu2.compareTo(cu) > 0);
 
-    cu2 = ComparableUnion.binary_field(ByteBuffer.wrap(new byte[]{2}));
+    cu2 = ComparableUnion.binary_field(new byte[]{2});
 
     assertTrue(cu.compareTo(cu2) < 0);
     assertTrue(cu2.compareTo(cu) > 0);
 
-    cu = ComparableUnion.binary_field(ByteBuffer.wrap(new byte[]{1}));
+    cu = ComparableUnion.binary_field(new byte[]{1});
 
     assertTrue(cu.compareTo(cu2) < 0);
     assertTrue(cu2.compareTo(cu) > 0);
@@ -190,17 +187,15 @@ public class TestTUnion extends TestCase {
 
   public void testDeepCopy() throws Exception {
     byte[] bytes = {1, 2, 3};
-    ByteBuffer value = ByteBuffer.wrap(bytes);
-    ComparableUnion cu = ComparableUnion.binary_field(value);
+    ComparableUnion cu = ComparableUnion.binary_field(bytes);
     ComparableUnion copy = cu.deepCopy();
     assertEquals(cu, copy);
-    assertNotSame(cu.bufferForBinary_field().array(), copy.bufferForBinary_field().array());
+    assertNotSame(cu.getBinary_field(), copy.getBinary_field());
   }
   
   public void testToString() throws Exception {
     byte[] bytes = {1, 2, 3};
-    ByteBuffer value = ByteBuffer.wrap(bytes);
-    ComparableUnion cu = ComparableUnion.binary_field(value);
+    ComparableUnion cu = ComparableUnion.binary_field(bytes);
     String expectedString = "<ComparableUnion binary_field:01 02 03>";
     assertEquals(expectedString, cu.toString());
   }

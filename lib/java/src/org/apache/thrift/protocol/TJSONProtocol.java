@@ -19,13 +19,11 @@
 
 package org.apache.thrift.protocol;
 
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-import java.util.Stack;
-
-import org.apache.thrift.TByteArrayOutputStream;
 import org.apache.thrift.TException;
+import org.apache.thrift.TByteArrayOutputStream;
 import org.apache.thrift.transport.TTransport;
+import java.io.UnsupportedEncodingException;
+import java.util.Stack;
 
 /**
  * JSON protocol implementation for thrift.
@@ -440,11 +438,11 @@ public class TJSONProtocol extends TProtocol {
 
   // Write out contents of byte array b as a JSON string with base-64 encoded
   // data
-  private void writeJSONBase64(byte[] b, int offset, int length) throws TException {
+  private void writeJSONBase64(byte[] b) throws TException {
     context_.write();
     trans_.write(QUOTE);
-    int len = length;
-    int off = offset;
+    int len = b.length;
+    int off = 0;
     while (len >= 3) {
       // Encode 3 bytes at a time
       TBase64Utils.encode(b, off, 3, tmpbuf_, 0);
@@ -606,8 +604,8 @@ public class TJSONProtocol extends TProtocol {
   }
 
   @Override
-  public void writeBinary(ByteBuffer bin) throws TException {
-    writeJSONBase64(bin.array(), bin.position() + bin.arrayOffset(), bin.limit() - bin.position() - bin.arrayOffset());
+  public void writeBinary(byte[] bin) throws TException {
+    writeJSONBase64(bin);
   }
 
   /**
@@ -929,8 +927,8 @@ public class TJSONProtocol extends TProtocol {
   }
 
   @Override
-  public ByteBuffer readBinary() throws TException {
-    return ByteBuffer.wrap(readJSONBase64());
+  public byte[] readBinary() throws TException {
+    return readJSONBase64();
   }
 
 }

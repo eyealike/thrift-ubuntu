@@ -20,7 +20,6 @@
 package org.apache.thrift;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
 
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TField;
@@ -204,9 +203,9 @@ public class TDeserializer {
    * @param fieldIdPathRest The rest FieldId's that define a path to a binary field
    * @throws TException
    */
-  public ByteBuffer partialDeserializeByteArray(byte[] bytes, TFieldIdEnum fieldIdPathFirst, TFieldIdEnum ... fieldIdPathRest) throws TException {
+  public byte[] partialDeserializeByteArray(byte[] bytes, TFieldIdEnum fieldIdPathFirst, TFieldIdEnum ... fieldIdPathRest) throws TException {
     // TType does not have binary, so we use the arbitrary num 100
-    return (ByteBuffer) partialDeserializeField((byte)100, bytes, fieldIdPathFirst, fieldIdPathRest);
+    return (byte[]) partialDeserializeField((byte)100, bytes, fieldIdPathFirst, fieldIdPathRest);
   }
 
   /**

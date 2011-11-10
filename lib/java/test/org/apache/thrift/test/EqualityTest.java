@@ -129,9 +129,7 @@ public class EqualityTest {
 package org.apache.thrift.test;
 
 // Generated code
-import java.nio.ByteBuffer;
-
-import thrift.test.JavaTestHelper;
+import thrift.test.*;
 
 /**
  */
@@ -488,8 +486,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{1,2};
     lhs.req_bin = null;
     rhs.req_bin = null;
     // this_present = False
@@ -501,8 +499,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{3,4};
     lhs.req_bin = null;
     rhs.req_bin = null;
     // this_present = False
@@ -514,8 +512,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{1,2};
     lhs.req_bin = null;
     // this_present = False
     // that_present = True
@@ -524,8 +522,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{3,4};
     lhs.req_bin = null;
     // this_present = False
     // that_present = True
@@ -534,8 +532,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{1,2};
     rhs.req_bin = null;
     // this_present = True
     // that_present = False
@@ -544,8 +542,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{3,4};
     rhs.req_bin = null;
     // this_present = True
     // that_present = False
@@ -554,8 +552,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{1,2};
     // this_present = True
     // that_present = True
     if (lhs.equals(rhs) != true)
@@ -565,8 +563,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.req_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.req_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.req_bin = new byte[]{1,2};
+    rhs.req_bin = new byte[]{3,4};
     // this_present = True
     // that_present = True
     if (lhs.equals(rhs) != false)
@@ -574,8 +572,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{1,2};
     lhs.opt_bin = null;
     rhs.opt_bin = null;
     // this_present = False
@@ -587,8 +585,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{3,4};
     lhs.opt_bin = null;
     rhs.opt_bin = null;
     // this_present = False
@@ -600,8 +598,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{1,2};
     lhs.opt_bin = null;
     // this_present = False
     // that_present = True
@@ -610,8 +608,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{3,4};
     lhs.opt_bin = null;
     // this_present = False
     // that_present = True
@@ -620,8 +618,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{1,2};
     rhs.opt_bin = null;
     // this_present = True
     // that_present = False
@@ -630,8 +628,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{3,4};
     rhs.opt_bin = null;
     // this_present = True
     // that_present = False
@@ -640,8 +638,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{1,2};
     // this_present = True
     // that_present = True
     if (lhs.equals(rhs) != true)
@@ -651,8 +649,8 @@ public class EqualityTest {
 
     lhs = new JavaTestHelper();
     rhs = new JavaTestHelper();
-    lhs.opt_bin = ByteBuffer.wrap(new byte[]{1,2});
-    rhs.opt_bin = ByteBuffer.wrap(new byte[]{3,4});
+    lhs.opt_bin = new byte[]{1,2};
+    rhs.opt_bin = new byte[]{3,4};
     // this_present = True
     // that_present = True
     if (lhs.equals(rhs) != false)

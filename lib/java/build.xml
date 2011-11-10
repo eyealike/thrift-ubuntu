@@ -204,6 +204,8 @@
       classpathref="test.classpath" failonerror="true">
       <arg line="${testargs}"/>
     </java>
+    <java classname="org.apache.thrift.test.ToStringTest"
+      classpathref="test.classpath" failonerror="true" />
   </target>
 
   <target name="testnonblockingserver" description="Run a test nonblocking server" depends="compile-test">

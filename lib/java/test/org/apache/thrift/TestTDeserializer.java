@@ -18,7 +18,7 @@
  */
 package org.apache.thrift;
 
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import junit.framework.TestCase;
 
@@ -98,9 +98,9 @@ public class TestTDeserializer extends TestCase {
       assertEquals(expectedString, resultString);
 
       byte[] expectedBinary = level3OneOfEach.getBase64();
-      ByteBuffer resultBinary = deserializer.partialDeserializeByteArray(serialize(level1SWU, factory), StructWithAUnion._Fields.TEST_UNION, TestUnion._Fields.STRUCT_FIELD, OneOfEach._Fields.BASE64);
-      assertEquals(expectedBinary.length, resultBinary.limit() - resultBinary.position() - resultBinary.arrayOffset());
-      assertEquals(ByteBuffer.wrap(expectedBinary), resultBinary);
+      byte[] resultBinary = deserializer.partialDeserializeByteArray(serialize(level1SWU, factory), StructWithAUnion._Fields.TEST_UNION, TestUnion._Fields.STRUCT_FIELD, OneOfEach._Fields.BASE64);
+      assertEquals(expectedBinary.length, resultBinary.length);
+      assertTrue(Arrays.equals(expectedBinary, resultBinary));
 
       // Test field id in Union
       short id = deserializer.partialDeserializeSetFieldIdInUnion(serialize(level1SWU, factory), StructWithAUnion._Fields.TEST_UNION);

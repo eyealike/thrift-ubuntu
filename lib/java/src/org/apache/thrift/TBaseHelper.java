@@ -220,6 +220,20 @@ public final class TBaseHelper {
     }
   }
 
+  public static void toString(byte[] bytes, StringBuilder sb) {
+    int size = Math.min(bytes.length, 128);
+    for (int i = 0; i < size; i++) {
+      if (i != 0) {
+        sb.append(" ");
+      }
+      String digit = Integer.toHexString(bytes[i] & 0xFF);
+      sb.append(digit.length() > 1 ? digit : "0" + digit);
+    }
+    if (bytes.length > 128) {
+      sb.append(" ...");
+    }
+  }
+
   public static void toString(ByteBuffer bb, StringBuilder sb) {
     byte[] buf = bb.array();
 
