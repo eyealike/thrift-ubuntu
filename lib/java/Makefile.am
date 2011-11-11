@@ -22,7 +22,7 @@ EXTRA_DIST = build.xml build.properties src test
 export CLASSPATH
 
 all-local:
-	$(ANT) $(ANT_FLAGS)
+	$(ANT) $(ANT_FLAGS) deploy
 
 install-exec-hook:
 	$(ANT) $(ANT_FLAGS) install -Dinstall.path=$(DESTDIR)$(JAVA_PREFIX) \

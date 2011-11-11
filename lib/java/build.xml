@@ -338,7 +338,7 @@
     <signAndDeploy file="${source.tar.gz}" packaging="src" classifier="tar.gz"/>
   </target>
 
-  <target name="deploy" depends="dist,javadoc,pack.src">
+  <target name="deploy" depends="clean,init,dist,javadoc,pack.src">
     <!-- Compile, package, test and then send release to apache maven repo -->
     <!-- run with: ant -Drelease=true deploy-->
     <artifact:mvn fork="true">
