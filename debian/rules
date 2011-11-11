@@ -100,7 +100,7 @@ install-indep:
 
 	# Java
 	mkdir -p $(CURDIR)/debian/libthrift-java/usr/share/java/ && \
-	cp $(CURDIR)/lib/java/build/libthrift-0.6.1-snapshot.jar \
+	cp $(CURDIR)/lib/java/build/libthrift-0.6.1-SNAPSHOT.jar \
 		$(CURDIR)/debian/libthrift-java/usr/share/java/
 
 	# Erlang

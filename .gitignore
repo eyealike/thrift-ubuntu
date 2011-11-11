@@ -2,6 +2,7 @@
 /.autotools
 /.cproject
 /.project
+/.settings/
 /aclocal.m4
 /aclocal/libtool.m4
 /aclocal/ltoptions.m4

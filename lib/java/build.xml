@@ -32,7 +32,7 @@
   <condition property="version" value="${thrift.version}">
     <isset property="release"/>
   </condition>
-  <property name="version" value="${thrift.version}-snapshot"/> 
+  <property name="version" value="${thrift.version}-SNAPSHOT"/> 
 
   <property name="final.name" value="${thrift.artifactid}-${version}"/>
 
@@ -52,6 +52,7 @@
   <property name="test.jar.file" location="${build.dir}/${final.name}-test.jar"/>
   <property name="javadoc.jar.file" location="${build.dir}/${final.name}-javadoc.jar"/>
   <property name="source.tar.gz" location="${build.dir}/${final.name}-src.tar.gz"/>
+  <property name="source.zip" location="${build.dir}/${final.name}-sources.zip"/>
 
   <!-- Junit properties -->
   <property name="test.junit.output.format" value="plain"/>
@@ -127,6 +128,7 @@
 
   <target name="pack.src">
     <tar destfile="${source.tar.gz}" basedir="${src}" compression="gzip"/>
+    <zip destfile="${source.zip}" basedir="${src}" />
   </target>
 
   <target name="install" depends="dist,javadoc">
@@ -257,7 +259,7 @@
       url="http://thrift.apache.org"
       name="Apache Thrift"
       description="Thrift is a software framework for scalable cross-language services development."
-      packaging="pom"
+      packaging="jar"
     >
       <remoteRepository refid="central"/>
       <remoteRepository refid="apache"/>
@@ -334,5 +336,19 @@
     <signAndDeploy file="${jar.file}" packaging="jar" classifier=""/>
     <signAndDeploy file="${javadoc.jar.file}" packaging="jar" classifier="javadoc"/>
     <signAndDeploy file="${source.tar.gz}" packaging="src" classifier="tar.gz"/>
+  </target>
+
+  <target name="deploy" depends="dist,javadoc,pack.src">
+    <!-- Compile, package, test and then send release to apache maven repo -->
+    <!-- run with: ant -Drelease=true deploy-->
+    <artifact:mvn fork="true">
+      <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.7:deploy-file"/>
+      <arg value="-DrepositoryId=${maven-repository-id}"/>
+      <arg value="-Durl=${maven-repository-url}"/>
+      <arg value="-DpomFile=${pom.xml}"/>
+      <arg value="-Dfile=${jar.file}"/>
+      <arg value="-Dsources=${source.zip}"/>
+      <arg value="-Djavadoc=${javadoc.jar.file}"/>
+    </artifact:mvn>
   </target>
 </project>
