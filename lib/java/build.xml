@@ -290,7 +290,7 @@
       <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.5.8"/>
       <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.5.8" scope="test"/>
       <dependency groupId="commons-lang" artifactId="commons-lang" version="2.5"/>
-      <dependency groupId="junit" artifactId="junit" version="4.4"/>
+      <dependency groupId="junit" artifactId="junit" version="4.4" scope="test" />
       <dependency groupId="javax.servlet" artifactId="servlet-api" version="2.5"/>
       <dependency groupId="org.apache.httpcomponents" artifactId="httpclient" version="4.0.1"/>
     </artifact:pom>
