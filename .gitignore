@@ -1,3 +1,4 @@
+.DS_Store
 .svn/
 /.autotools
 /.cproject
@@ -25,6 +26,9 @@
 /configure
 /configure.lineno
 /configure.scan
+/contrib/fb303/cpp/Makefile.in
+/contrib/fb303/Makefile.in
+/contrib/fb303/py/Makefile.in
 /depcomp
 /if/Makefile
 /if/Makefile.in
