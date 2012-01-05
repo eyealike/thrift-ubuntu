@@ -64,7 +64,7 @@ build-indep-stamp: configure-stamp
 
 	# Java
 	cd $(CURDIR)/lib/java && \
-		ant deploy
+		ant $(ANT_FLAGS) deploy
 
 	# Erlang
 	$(MAKE) -C $(CURDIR)/lib/erl
