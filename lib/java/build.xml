@@ -316,7 +316,7 @@
     <attribute name="classifier" default=""/>
     <attribute name="packaging" default="jar"/>
     <sequential>
-      <artifact:mvn fork="true">
+      <artifact:mvn fork="true" failonerror="true">
         <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.1:sign-and-deploy-file"/>
         <arg value="-DrepositoryId=${maven-repository-id}"/>
         <arg value="-Durl=${maven-repository-url}"/>
