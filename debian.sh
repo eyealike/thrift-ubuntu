@@ -12,4 +12,4 @@ dch \
 	--newversion "${upstreamVersion}-${debianVersion}-ps${psPlatformVersion}~${BUILD_NUMBER}" \
 	"Continuous integration build #${BUILD_NUMBER}"
 
-debuild -i -us -uc -b
+debuild -e ANT_FLAGS -i -us -uc -b
