@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-psPlatformVersion="3.5.0"
+psPlatformVersion="3.5.1"
 distribution="snapshots"
 upstreamVersion="0.6.1"
 debianVersion="0ubuntu1"
